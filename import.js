@@ -216,6 +216,26 @@ function _finalizeParsedTransactions(parsed, accountId) {
     return false
   }
 
+  // Loose-hash dedup: vendor-agnostic (accountId|date|amount only).
+  // Catches re-imports where Gemini returned a different vendor string.
+  // Shares the same `consumed` WeakSet so exact-matched rows can't also
+  // be loose-matched by a subsequent import row.
+  const slotsByLooseHash = new Map()
+  existing.forEach(t => {
+    const lh = t.looseHash || _rawHash(`${t.accountId}|${t.date}|${t.amount}`)
+    if (!slotsByLooseHash.has(lh)) slotsByLooseHash.set(lh, [])
+    slotsByLooseHash.get(lh).push(t)
+  })
+  const consumeLooseMatch = (lh) => {
+    if (!lh) return false
+    const slots = slotsByLooseHash.get(lh)
+    if (!slots) return false
+    for (const row of slots) {
+      if (!consumed.has(row)) { consumed.add(row); return true }
+    }
+    return false
+  }
+
   // Auto-transfer detection on import is DISABLED: the bank statement is the
   // authoritative P&L source. A "כאל 5000" line on the bank is a real expense,
   // not a transfer. Users can manually mark a row as transfer in the edit modal,
@@ -225,15 +245,18 @@ function _finalizeParsedTransactions(parsed, accountId) {
     const catFromName    = matchCategory(t)
     const catFromRules   = catFromName ? '' : matchVendorToCategory(t.vendor, t.description)
     const catFromAutocat = (catFromName || catFromRules) ? '' : suggestFromAutocat(t.vendor)
-    const { hash, legacyHash } = hashTx(t, accountId)
+    const { hash, legacyHash, looseHash } = hashTx(t, accountId)
     const isDuplicate = consumeMatch(hash, legacyHash)
+    const isMaybeDuplicate = !isDuplicate && consumeLooseMatch(looseHash)
     return {
       ...t,
       _categoryId:     catFromName || catFromRules || catFromAutocat,
       _hash:           hash,
       _legacyHash:     legacyHash,
+      _looseHash:      looseHash,
       _duplicate:      isDuplicate,
-      _keep:           !isDuplicate,
+      _maybeDuplicate: isMaybeDuplicate,
+      _keep:           !isDuplicate && !isMaybeDuplicate,
       _accountId:      accountId,
       _matchAccountId:   '',
       _matchAccountName: '',
@@ -248,11 +271,13 @@ function _finalizeParsedTransactions(parsed, accountId) {
 function showImportReview() {
   const toImport = _parsedTx.filter(t => t._keep).length
   const dups = _parsedTx.filter(t => t._duplicate).length
+  const maybeDups = _parsedTx.filter(t => t._maybeDuplicate).length
 
   document.getElementById('importChips').innerHTML = [
-    { label: 'עסקאות שנמצאו', value: _parsedTx.length, color: 'var(--accent)' },
-    { label: 'לייבוא',         value: toImport,          color: 'var(--income)' },
-    ...(dups > 0 ? [{ label: 'כפילויות (מדולגות)', value: dups, color: 'var(--text-muted)' }] : []),
+    { label: 'עסקאות שנמצאו', value: _parsedTx.length,  color: 'var(--accent)' },
+    { label: 'לייבוא',         value: toImport,           color: 'var(--income)' },
+    ...(dups > 0      ? [{ label: 'כפילויות (מדולגות)',        value: dups,      color: 'var(--text-muted)' }] : []),
+    ...(maybeDups > 0 ? [{ label: 'ייתכן כפיל (בדוק ידנית)', value: maybeDups, color: '#f59e0b' }] : []),
   ].map(c => `
     <div class="import-chip">
       <div class="chip-label">${c.label}</div>
@@ -275,15 +300,23 @@ function showImportReview() {
     const billingWarn = suspicious
       ? `<span title="שים לב: תאריך העסקה זהה ליום החיוב. ודא שזהו אכן תאריך הרכישה ולא תאריך החיוב המרוכז" style="cursor:help"> ⚠️</span>`
       : ''
+    const rowOpacity = t._duplicate ? '.4' : (t._maybeDuplicate ? '.7' : '1')
+    const rowBg = t._maybeDuplicate ? 'background:rgba(245,158,11,0.06)' : ''
+    const badge = t._duplicate
+      ? 'קיים'
+      : t._maybeDuplicate
+        ? '<span style="color:#f59e0b">ייתכן כפיל</span>'
+        : typeLabel(t.type)
+    const badgeCls = (t._duplicate || t._maybeDuplicate) ? '' : typeCls(t.type)
     return `
-    <tr style="opacity:${t._duplicate?'.4':'1'}">
-      <td><input type="checkbox" ${t._keep&&!t._duplicate?'checked':''} ${t._duplicate?'disabled':''}
+    <tr style="opacity:${rowOpacity};${rowBg}">
+      <td><input type="checkbox" ${t._keep?'checked':''} ${t._duplicate?'disabled':''}
         onchange="_parsedTx[${i}]._keep=this.checked;_updateSaveBtn()" style="width:auto;cursor:pointer"></td>
       <td>${formatDate(t.date)}${billingWarn}</td>
       <td style="font-weight:500">${t.vendor}${ccNote}</td>
       <td style="font-weight:700;color:${t.amount>0?'var(--income)':'var(--expense)'}">${t.amount>0?'+':''}${formatCurrency(t.amount)}</td>
       <td>${cat ? `<span style="font-size:.8rem">${cat.icon} ${cat.name}</span>` : '<span style="color:var(--text-muted);font-size:.8rem">—</span>'}</td>
-      <td><span class="type-badge ${typeCls(t.type)}">${t._duplicate?'קיים':typeLabel(t.type)}</span></td>
+      <td><span class="${badgeCls?`type-badge ${badgeCls}`:''}">${badge}</span></td>
     </tr>`}).join('')
 
   document.getElementById('importTable').innerHTML = `
@@ -343,6 +376,7 @@ function saveImport() {
     notes:            '',
     sourceHash:       t._hash,
     legacySourceHash: t._legacyHash,
+    looseHash:        t._looseHash,
     sourceFile:       _importFileName,
     importBatch:      batchId,
     importedAt:       importedAt,

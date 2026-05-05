@@ -1,4 +1,4 @@
-const APP_VERSION = '1.21.7'
+const APP_VERSION = '1.21.8'
 
 // ===== STORAGE =====
 const DB = {
@@ -24,17 +24,21 @@ function _rawHash(str) {
   return Math.abs(h).toString(36)
 }
 
-// Returns { hash, legacyHash }:
+// Returns { hash, legacyHash, looseHash }:
 //   hash       — includes description, avoiding false dup-matches when the
 //                same vendor charges the same amount twice on the same day.
 //   legacyHash — pre-1.9.1 formula (no description). Kept so re-imports of
 //                files indexed before the upgrade still detect existing rows.
-// saveImport stores both on the transaction (sourceHash + legacySourceHash),
-// and _finalizeParsedTransactions matches against both sets in either direction.
+//   looseHash  — vendor-agnostic (accountId|date|amount). Secondary match for
+//                AI-imported files where Gemini may return a different vendor
+//                string on re-import, causing exact hash to miss the duplicate.
+// saveImport stores all three; _finalizeParsedTransactions matches exact first,
+// then falls back to loose (flagged as _maybeDuplicate, unchecked but overrideable).
 function hashTx(tx, accountId) {
   const v1 = `${accountId}|${tx.date}|${tx.amount}|${tx.vendor}`
   const v2 = `${accountId}|${tx.date}|${tx.amount}|${tx.vendor}|${tx.description||''}`
-  return { hash: _rawHash(v2), legacyHash: _rawHash(v1) }
+  const v0 = `${accountId}|${tx.date}|${tx.amount}`
+  return { hash: _rawHash(v2), legacyHash: _rawHash(v1), looseHash: _rawHash(v0) }
 }
 
 // ===== NAVIGATION =====
