@@ -51,14 +51,31 @@ function renderDashboard() {
       })
     }
   }
-  document.getElementById('dashStats').innerHTML = cards.map(s => `
-    <div class="stat-card" ${s.tooltip?`title="${s.tooltip}"`:''}>
-      <div class="stat-icon" style="background:${s.bg}">${s.icon}</div>
-      <div>
-        <div class="stat-label">${s.label}</div>
-        <div class="stat-value" style="color:${s.color}">${formatCurrency(s.value)}</div>
+  // Hero = net; rest go in the bento right column
+  const heroCard = cards[2] || cards[0]
+  const otherCards = cards.filter(c => c !== heroCard)
+  const trendPos = heroCard.value >= 0
+  const sign = heroCard.value > 0 ? '+' : ''
+  document.getElementById('dashStats').innerHTML = `
+    <div class="bento-outer">
+      <div class="bento-hero">
+        <div class="bento-hero-eyebrow">נטו התקופה</div>
+        <div class="bento-hero-amount" style="color:${heroCard.color}">${sign}${formatCurrency(heroCard.value)}</div>
+        <div class="bento-hero-trend" style="background:${trendPos?'rgba(34,197,94,.14)':'rgba(239,68,68,.14)'};color:${heroCard.color}">
+          ${trendPos?'▲':'▼'} ${trendPos?'תזרים חיובי':'תזרים שלילי'}
+        </div>
+        <div class="bento-hero-sub">הכנסות פחות הוצאות בתקופה הנבחרת</div>
       </div>
-    </div>`).join('')
+      <div class="bento-right">
+        ${otherCards.map(s => `
+          <div class="bento-stat" ${s.tooltip?`title="${s.tooltip.replace(/"/g,'&quot;')}"`:''}>
+            <div class="bento-stat-icon" style="background:${s.bg}">${s.icon}</div>
+            <div class="bento-stat-label">${s.label}</div>
+            <div class="bento-stat-value" style="color:${s.color}">${formatCurrency(s.value)}</div>
+            ${s.tooltip?`<div class="bento-stat-hint">${s.tooltip.split('\n')[0]}</div>`:''}
+          </div>`).join('')}
+      </div>
+    </div>`
 
   // Accounts balances
   _renderAccountBalances()
@@ -168,21 +185,28 @@ function _renderMonthlyChart(all, period) {
 
   if (_monthlyChart) _monthlyChart.destroy()
   const ctx = document.getElementById('monthlyChart').getContext('2d')
+  const netGrad = ctx.createLinearGradient(0, 0, 0, 260)
+  netGrad.addColorStop(0, 'rgba(59,130,246,.35)')
+  netGrad.addColorStop(1, 'rgba(59,130,246,0)')
   _monthlyChart = new Chart(ctx, {
     data: {
       labels,
       datasets: [
-        { type: 'bar', label: 'הכנסות', data: incomes, backgroundColor: 'rgba(34,197,94,.7)', borderRadius: 5, yAxisID: 'y' },
-        { type: 'bar', label: 'הוצאות', data: exps,    backgroundColor: 'rgba(239,68,68,.7)', borderRadius: 5, yAxisID: 'y' },
-        { type: 'line', label: 'נטו',   data: nets,    borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,.2)', borderWidth: 2, tension: .3, yAxisID: 'y', pointRadius: 3 },
+        { type: 'bar',  label: 'הכנסות', data: incomes, backgroundColor: 'rgba(34,197,94,.55)',  borderRadius: 6, borderSkipped: false, yAxisID: 'y' },
+        { type: 'bar',  label: 'הוצאות', data: exps,    backgroundColor: 'rgba(239,68,68,.55)',  borderRadius: 6, borderSkipped: false, yAxisID: 'y' },
+        { type: 'line', label: 'נטו',    data: nets,    borderColor: '#3b82f6', backgroundColor: netGrad,
+          borderWidth: 2.5, tension: 0.45, fill: true, yAxisID: 'y',
+          pointRadius: 4, pointBackgroundColor: '#3b82f6', pointBorderColor: '#03040b', pointBorderWidth: 2 },
       ]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { labels: { color: '#8aaccc', font: { family: 'Heebo' } } } },
+      plugins: { legend: { labels: { color: '#64748b', font: { family: 'Heebo', size: 11 }, boxWidth: 12, padding: 16 } } },
       scales: {
-        x: { ticks: { color: '#4d6a8a' }, grid: { color: '#1e3a5f' } },
-        y: { ticks: { color: '#4d6a8a', callback: v => '₪' + (v/1000).toFixed(0) + 'k' }, grid: { color: '#1e3a5f' } }
+        x: { ticks: { color: '#4d6a8a', font: { family:'Heebo', size:11 } },
+             grid: { display: false }, border: { display: false } },
+        y: { ticks: { color: '#4d6a8a', font: { family:'Heebo', size:11 }, callback: v => '₪' + (v/1000).toFixed(0) + 'k' },
+             grid: { color: 'rgba(255,255,255,0.04)' }, border: { display: false } }
       }
     }
   })

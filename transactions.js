@@ -1,6 +1,15 @@
 let _txPage = 0
 const TX_PAGE_SIZE = 40
 
+function _richAmount(dispAmt) {
+  const sign = dispAmt > 0 ? '+' : (dispAmt < 0 ? '-' : '')
+  const abs = Math.abs(dispAmt)
+  const intPart = Math.floor(abs).toLocaleString('he-IL')
+  const cents = Math.round(abs * 100) % 100
+  const decPart = '.' + String(cents).padStart(2, '0')
+  return `${sign}<span class="amt-sym">₪</span><span class="amt-int">${intPart}</span><span class="amt-dec">${decPart}</span>`
+}
+
 // Bulk-select mode: when on, each row gets a checkbox and a toolbar lets
 // the user merge them into a manual recurring group. Tx that already
 // belong to a manual group (`recurringGroupId`) are HIDDEN from the list
@@ -194,13 +203,14 @@ function _drawTxTable() {
   }
 
   const selectColHead = _txSelectMode ? '<th style="width:32px"><input type="checkbox" id="txSelectAll" onclick="toggleTxSelectAll(this.checked)"></th>' : ''
-  const colspan = (showRunningBalance ? 9 : 8) + (_txSelectMode ? 1 : 0)
+  const colspan = (showRunningBalance ? 8 : 7) + (_txSelectMode ? 1 : 0)
 
   document.getElementById('txTable').innerHTML = `
     <table class="data-table">
       <thead><tr>
         ${selectColHead}
-        <th>תאריך</th><th>חודש חיוב</th><th>ספק</th><th>קטגוריה</th>
+        <th>ספק / קטגוריה</th>
+        <th>תאריך</th><th>חודש חיוב</th>
         <th>סכום</th><th>סוג</th>
         ${showRunningBalance ? '<th>יתרה</th>' : ''}
         <th>הערות</th><th></th>
@@ -209,9 +219,6 @@ function _drawTxTable() {
       ${page.length === 0 ? `<tr><td colspan="${colspan}" style="text-align:center;padding:3rem;color:var(--text-muted)">אין עסקאות</td></tr>` :
         page.map(tx => {
           const cat = getCategoryById(tx.categoryId)
-          const catBadge = cat
-            ? `<span class="cat-badge cat-badge-clickable" onclick="filterTxByCategory('${cat.id}')" title="סנן לפי קטגוריה זו" style="background:${cat.color}22;color:${cat.color}">${cat.icon} ${cat.name}</span>`
-            : `<span class="cat-badge-clickable" onclick="filterTxByCategory('__none__')" title="סנן לפי לא־מסווג" style="color:var(--text-muted);font-size:.8rem">לא מסווג</span>`
           const isMirror = _txIsMirrorFor(tx, accountId)
           const dispAmt = isMirror ? -tx.amount : tx.amount
           const isNonCounted = tx.type === 'transfer' || tx.type === 'refund'
@@ -230,8 +237,6 @@ function _drawTxTable() {
           const recurringFlagBadge = tx.recurringFlag
             ? `<span class="type-badge type-refund" title="מסומן כקבוע (${recurringCadenceLabel(tx.recurringFlag)})" style="margin-inline-start:.3rem">🔁 ${recurringCadenceLabel(tx.recurringFlag)}</span>`
             : ''
-          // Linked-tx chip: tx is part of a manual recurring merge group.
-          // Tap = open the merged entry's drill in the recurring screen.
           const groupBadge = tx.recurringGroupId && typeof getManualRecurringGroups === 'function'
             ? (() => {
                 const grp = getManualRecurringGroups().find(g => g.id === tx.recurringGroupId)
@@ -242,13 +247,28 @@ function _drawTxTable() {
           const selectCell = _txSelectMode
             ? `<td onclick="event.stopPropagation()"><input type="checkbox" ${_txSelected.has(tx.id)?'checked':''} onclick="toggleTxSelected('${tx.id}')"></td>`
             : ''
+          const avatarBg = cat ? cat.color + '22' : 'rgba(100,116,139,.15)'
+          const avatarIcon = cat ? (cat.icon || '📋') : '📋'
+          const catLabel = cat
+            ? `<span class="tx-vendor-cat cat-badge-clickable" onclick="filterTxByCategory('${cat.id}')" title="סנן לפי קטגוריה זו" style="color:${cat.color}">${cat.icon} ${cat.name}</span>`
+            : `<span class="tx-vendor-cat cat-badge-clickable" onclick="filterTxByCategory('__none__')" title="סנן לפי לא־מסווג" style="color:var(--text-muted)">— לא מסווג</span>`
+          const vendorName = resolveVendor(tx.vendor, tx.amount, getTxAliasDay(tx)) || '—'
+          const descLine = tx.description && tx.description !== tx.vendor
+            ? `<div style="font-size:.72rem;color:var(--text-muted);margin-top:.1rem">${tx.description}</div>` : ''
           return `<tr ${isNonCounted||isMirror?'class="tx-noncounted"':''}>
             ${selectCell}
-            <td>${formatDate(tx.date)}</td>
+            <td>
+              <div class="tx-vendor-cell">
+                <div class="tx-avatar" style="background:${avatarBg}">${avatarIcon}</div>
+                <div>
+                  <div class="tx-vendor-name">${vendorName}${recurringFlagBadge}${groupBadge}</div>
+                  ${catLabel}${descLine}
+                </div>
+              </div>
+            </td>
+            <td style="font-size:.85rem;color:var(--text-secondary)">${formatDate(tx.date)}</td>
             ${effCell}
-            <td><div style="font-weight:500">${resolveVendor(tx.vendor, tx.amount, getTxAliasDay(tx))||'—'}${recurringFlagBadge}${groupBadge}</div>${tx.description&&tx.description!==tx.vendor?`<div style="font-size:.75rem;color:var(--text-muted)">${tx.description}</div>`:''}</td>
-            <td>${catBadge}</td>
-            <td class="${amountCls}">${dispAmt>0?'+':''}${formatCurrency(dispAmt)}</td>
+            <td class="${amountCls}">${_richAmount(dispAmt)}</td>
             <td>${typeBadge}</td>
             ${balCell}
             <td style="color:var(--text-muted);font-size:.8rem">${tx.notes||''}</td>

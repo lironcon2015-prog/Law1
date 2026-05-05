@@ -120,7 +120,7 @@ function _renderExpensePie(periodTx) {
       type: 'doughnut',
       data: {
         labels: expRows.map(r=>r.name),
-        datasets: [{ data: expRows.map(r=>r.total), backgroundColor: expRows.map(r=>r.color), borderWidth: 2, borderColor: '#111827' }]
+        datasets: [{ data: expRows.map(r=>r.total), backgroundColor: expRows.map(r=>r.color), borderWidth: 2, borderColor: '#03040b' }]
       },
       options: {
         responsive: true, maintainAspectRatio: false,
@@ -256,21 +256,27 @@ function _renderTrendChart(all, period) {
 
   if (_trendChart) _trendChart.destroy()
   const ctx = document.getElementById('trendChart').getContext('2d')
+  const trendNetGrad = ctx.createLinearGradient(0, 0, 0, 300)
+  trendNetGrad.addColorStop(0, 'rgba(59,130,246,.3)')
+  trendNetGrad.addColorStop(1, 'rgba(59,130,246,0)')
   _trendChart = new Chart(ctx, {
     data: {
       labels,
       datasets: [
-        { type: 'bar',  label: 'הכנסות', data: incomes, backgroundColor: 'rgba(34,197,94,.6)', borderRadius: 4 },
-        { type: 'bar',  label: 'הוצאות', data: exps,    backgroundColor: 'rgba(239,68,68,.6)', borderRadius: 4 },
-        { type: 'line', label: 'נטו',    data: nets,    borderColor: '#3b82f6', borderWidth: 2, tension: .3, pointRadius: 3 },
+        { type: 'bar',  label: 'הכנסות', data: incomes, backgroundColor: 'rgba(34,197,94,.55)', borderRadius: 6, borderSkipped: false },
+        { type: 'bar',  label: 'הוצאות', data: exps,    backgroundColor: 'rgba(239,68,68,.55)', borderRadius: 6, borderSkipped: false },
+        { type: 'line', label: 'נטו',    data: nets,    borderColor: '#3b82f6', backgroundColor: trendNetGrad,
+          borderWidth: 2.5, tension: 0.45, fill: true,
+          pointRadius: 4, pointBackgroundColor: '#3b82f6', pointBorderColor: '#03040b', pointBorderWidth: 2 },
       ]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { labels: { color: '#8aaccc', font: { family: 'Heebo' } } } },
+      plugins: { legend: { labels: { color: '#64748b', font: { family: 'Heebo', size: 11 }, boxWidth: 12, padding: 16 } } },
       scales: {
-        x: { ticks: { color: '#4d6a8a' }, grid: { color: '#1e3a5f' } },
-        y: { ticks: { color: '#4d6a8a', callback: v => '₪' + (v/1000).toFixed(0) + 'k' }, grid: { color: '#1e3a5f' } }
+        x: { ticks: { color: '#4d6a8a', font: { family:'Heebo', size:11 } }, grid: { display: false }, border: { display: false } },
+        y: { ticks: { color: '#4d6a8a', font: { family:'Heebo', size:11 }, callback: v => '₪' + (v/1000).toFixed(0) + 'k' },
+             grid: { color: 'rgba(255,255,255,0.04)' }, border: { display: false } }
       }
     }
   })
@@ -320,16 +326,17 @@ function _renderYoY(all, period) {
     data: {
       labels: ['הכנסות', 'הוצאות', 'נטו'],
       datasets: [
-        { label: 'שנה קודמת',   data: [prvInc, prvExp, prvNet], backgroundColor: 'rgba(100,116,139,.6)', borderRadius: 4 },
-        { label: 'תקופה נוכחית', data: [curInc, curExp, curNet], backgroundColor: 'rgba(59,130,246,.7)', borderRadius: 4 },
+        { label: 'שנה קודמת',    data: [prvInc, prvExp, prvNet], backgroundColor: 'rgba(100,116,139,.4)', borderRadius: 6, borderSkipped: false },
+        { label: 'תקופה נוכחית', data: [curInc, curExp, curNet], backgroundColor: 'rgba(59,130,246,.65)',  borderRadius: 6, borderSkipped: false },
       ]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { labels: { color: '#8aaccc', font: { family: 'Heebo' } } } },
+      plugins: { legend: { labels: { color: '#64748b', font: { family: 'Heebo', size: 11 }, boxWidth: 12, padding: 16 } } },
       scales: {
-        x: { ticks: { color: '#4d6a8a' }, grid: { color: '#1e3a5f' } },
-        y: { ticks: { color: '#4d6a8a', callback: v => '₪' + (v/1000).toFixed(0) + 'k' }, grid: { color: '#1e3a5f' } }
+        x: { ticks: { color: '#4d6a8a', font: { family:'Heebo', size:11 } }, grid: { display: false }, border: { display: false } },
+        y: { ticks: { color: '#4d6a8a', font: { family:'Heebo', size:11 }, callback: v => '₪' + (v/1000).toFixed(0) + 'k' },
+             grid: { color: 'rgba(255,255,255,0.04)' }, border: { display: false } }
       }
     }
   })
