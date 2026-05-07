@@ -188,6 +188,23 @@ function _finalizeParsedTransactions(parsed, accountId) {
     return (topN / total) >= AUTOCAT_CONFIDENCE_THRESHOLD ? topCat : ''
   }
 
+  // Effective billing month — keys the dedup so installments (תשלומים) across
+  // different bills survive: same purchase date + amount + vendor, different
+  // chargeDate ⇒ different billing months ⇒ separate slots, not duplicates.
+  // Non-CC rows resolve to the calendar month of `date`, preserving prior
+  // behavior. Rows imported before chargeDate existed fall back to billingDay
+  // rollover, which may collide with new chargeDate-tagged rows on rare edges
+  // — the user can override per-row in the review table.
+  const txMonth = (tx, accId) => {
+    try {
+      return getTxEffectiveMonth({
+        date: tx.date,
+        chargeDate: tx.chargeDate,
+        accountId: accId || tx.accountId,
+      }) || ''
+    } catch { return '' }
+  }
+
   // Multi-set dedupe: each existing row is one slot that can be consumed by
   // at most one new row. Without this, N installments that share the same
   // (date, amount, vendor, description) all match the SAME single existing
@@ -196,18 +213,20 @@ function _finalizeParsedTransactions(parsed, accountId) {
   const slotsByHash = new Map()
   existing.forEach(t => {
     const seen = new Set()
+    const m = txMonth(t)
     ;[t.sourceHash, t.legacySourceHash].forEach(h => {
       if (!h || seen.has(h)) return
       seen.add(h)
-      if (!slotsByHash.has(h)) slotsByHash.set(h, [])
-      slotsByHash.get(h).push(t)
+      const key = `${h}|${m}`
+      if (!slotsByHash.has(key)) slotsByHash.set(key, [])
+      slotsByHash.get(key).push(t)
     })
   })
   const consumed = new WeakSet()
-  const consumeMatch = (...hashes) => {
+  const consumeMatch = (m, ...hashes) => {
     for (const h of hashes) {
       if (!h) continue
-      const slots = slotsByHash.get(h)
+      const slots = slotsByHash.get(`${h}|${m}`)
       if (!slots) continue
       for (const row of slots) {
         if (!consumed.has(row)) { consumed.add(row); return true }
@@ -223,12 +242,13 @@ function _finalizeParsedTransactions(parsed, accountId) {
   const slotsByLooseHash = new Map()
   existing.forEach(t => {
     const lh = t.looseHash || _rawHash(`${t.accountId}|${t.date}|${t.amount}`)
-    if (!slotsByLooseHash.has(lh)) slotsByLooseHash.set(lh, [])
-    slotsByLooseHash.get(lh).push(t)
+    const key = `${lh}|${txMonth(t)}`
+    if (!slotsByLooseHash.has(key)) slotsByLooseHash.set(key, [])
+    slotsByLooseHash.get(key).push(t)
   })
-  const consumeLooseMatch = (lh) => {
+  const consumeLooseMatch = (m, lh) => {
     if (!lh) return false
-    const slots = slotsByLooseHash.get(lh)
+    const slots = slotsByLooseHash.get(`${lh}|${m}`)
     if (!slots) return false
     for (const row of slots) {
       if (!consumed.has(row)) { consumed.add(row); return true }
@@ -246,8 +266,9 @@ function _finalizeParsedTransactions(parsed, accountId) {
     const catFromRules   = catFromName ? '' : matchVendorToCategory(t.vendor, t.description)
     const catFromAutocat = (catFromName || catFromRules) ? '' : suggestFromAutocat(t.vendor)
     const { hash, legacyHash, looseHash } = hashTx(t, accountId)
-    const isDuplicate = consumeMatch(hash, legacyHash)
-    const isMaybeDuplicate = !isDuplicate && consumeLooseMatch(looseHash)
+    const newMonth = txMonth(t, accountId)
+    const isDuplicate = consumeMatch(newMonth, hash, legacyHash)
+    const isMaybeDuplicate = !isDuplicate && consumeLooseMatch(newMonth, looseHash)
     return {
       ...t,
       _categoryId:     catFromName || catFromRules || catFromAutocat,
@@ -310,8 +331,10 @@ function showImportReview() {
     const badgeCls = (t._duplicate || t._maybeDuplicate) ? '' : typeCls(t.type)
     return `
     <tr style="opacity:${rowOpacity};${rowBg}">
-      <td><input type="checkbox" ${t._keep?'checked':''} ${t._duplicate?'disabled':''}
-        onchange="_parsedTx[${i}]._keep=this.checked;_updateSaveBtn()" style="width:auto;cursor:pointer"></td>
+      <td><input type="checkbox" ${t._keep?'checked':''}
+        onchange="_parsedTx[${i}]._keep=this.checked;_updateSaveBtn()"
+        ${t._duplicate?'title="עסקה שזוהתה ככפילות. סמן וי כדי לייבא בכל זאת"':''}
+        style="width:auto;cursor:pointer"></td>
       <td>${formatDate(t.date)}${billingWarn}</td>
       <td style="font-weight:500">${t.vendor}${ccNote}</td>
       <td style="font-weight:700;color:${t.amount>0?'var(--income)':'var(--expense)'}">${t.amount>0?'+':''}${formatCurrency(t.amount)}</td>
