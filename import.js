@@ -205,6 +205,43 @@ function _finalizeParsedTransactions(parsed, accountId) {
     } catch { return '' }
   }
 
+  // Credit-card imports: every line on a CC bill belongs to that bill's
+  // billing month, regardless of the purchase date. Installments (תשלומים)
+  // are purchases from earlier months that re-appear on each bill — same
+  // (date, amount, vendor) across N bills. Without distinguishing the bills,
+  // installment 2/N onward gets falsely flagged as a duplicate of 1/N.
+  // Gemini doesn't reliably return a chargeDate column, so we infer the
+  // file's billing month from the latest transaction date in the file:
+  // CC bills close ~day (billingDay-1) of the billing month, so the latest
+  // date's day < CC_BILL_DAY_CUTOFF (=9, with 2-day safety) puts the bill in
+  // that calendar month; otherwise, it rolls to next month. Then we stamp
+  // chargeDate on every row that lacks one, so dedup-by-month works.
+  const accForImport = getAccounts().find(a => a.id === accountId)
+  const isCCImport = accForImport?.type === 'credit_card'
+  const ccBillingDay = accForImport?.billingDay || 10
+  const CC_BILL_DAY_CUTOFF = 9
+  let fileBillingMonth = ''
+  if (isCCImport && Array.isArray(parsed) && parsed.length) {
+    const dates = parsed.map(t => t.date).filter(Boolean).sort()
+    const last = dates[dates.length - 1]
+    if (last) {
+      const [y, m, d] = last.split('-').map(Number)
+      if (d < CC_BILL_DAY_CUTOFF) {
+        fileBillingMonth = `${y}-${String(m).padStart(2, '0')}`
+      } else {
+        const nm = m === 12 ? 1 : m + 1
+        const ny = m === 12 ? y + 1 : y
+        fileBillingMonth = `${ny}-${String(nm).padStart(2, '0')}`
+      }
+    }
+  }
+  const inferredChargeDate = fileBillingMonth
+    ? `${fileBillingMonth}-${String(ccBillingDay).padStart(2, '0')}`
+    : ''
+  if (isCCImport && inferredChargeDate) {
+    parsed.forEach(t => { if (!t.chargeDate) t.chargeDate = inferredChargeDate })
+  }
+
   // Multi-set dedupe: each existing row is one slot that can be consumed by
   // at most one new row. Without this, N installments that share the same
   // (date, amount, vendor, description) all match the SAME single existing
