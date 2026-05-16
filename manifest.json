@@ -1,7 +1,7 @@
 {
-  "name": "כספים – ניהול פיננסי",
-  "short_name": "כספים",
-  "description": "ניהול תזרים, הוצאות והכנסות",
+  "name": "מערכת ניהול",
+  "short_name": "תיקים",
+  "description": "מערכת ניהול נתונים",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#0a0e1a",

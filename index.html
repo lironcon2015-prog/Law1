@@ -2,12 +2,12 @@
 <html lang="he" dir="rtl">
 <head>
   <meta charset="UTF-8">
-  <!-- v1.21.13 -->
+  <!-- v1.21.14 -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>כספים – ניהול פיננסי</title>
+  <title>מערכת ניהול</title>
   <link rel="stylesheet" href="style.css">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0a0e1a">
@@ -24,7 +24,7 @@
   </button>
   <div class="nav-brand">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-    כספים
+    תיקים
   </div>
 </nav>
 
@@ -36,11 +36,11 @@
   </a>
   <a class="bnav-item" data-screen="transactions" onclick="navigate('transactions')">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
-    <span>עסקאות</span>
+    <span>תיקים</span>
   </a>
   <a class="bnav-item" data-screen="budget" onclick="navigate('budget')">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-    <span>תקציב</span>
+    <span>תכנון</span>
   </a>
   <a class="bnav-item" data-screen="analysis" onclick="navigate('analysis')">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
@@ -58,7 +58,7 @@
 <aside class="sidebar" id="sidebar">
   <div class="sidebar-brand">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-    כספים
+    תיקים
   </div>
   <nav class="sidebar-nav">
     <a class="nav-link" data-screen="dashboard" onclick="navigate('dashboard')">
@@ -67,27 +67,27 @@
     </a>
     <a class="nav-link" data-screen="transactions" onclick="navigate('transactions')">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
-      עסקאות
+      תיקים
     </a>
     <a class="nav-link" data-screen="import" onclick="navigate('import')">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-      ייבוא קובץ
+      ייבוא
     </a>
     <a class="nav-link" data-screen="analysis" onclick="navigate('analysis')">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-      ניתוח ותזרים
+      ניתוח
     </a>
     <a class="nav-link" data-screen="recurring" onclick="navigate('recurring')">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10"/><path d="M20.49 15A9 9 0 015.64 18.36L1 14"/></svg>
-      הוצאות/הכנסות קבועות
+      פריטים חוזרים
     </a>
     <a class="nav-link" data-screen="budget" onclick="navigate('budget')">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-      תקציב
+      תכנון
     </a>
     <a class="nav-link" data-screen="property" onclick="navigate('property')">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12l9-9 9 9"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg>
-      משכנתא ונכס
+      נכסים
     </a>
     <a class="nav-link" data-screen="settings" onclick="navigate('settings')">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -108,17 +108,17 @@
     <div id="dashStats"></div>
     <div class="two-col">
       <div class="card">
-        <div class="card-title" id="monthlyChartTitle">הכנסות מול הוצאות</div>
+        <div class="card-title" id="monthlyChartTitle">מגמה חודשית</div>
         <div style="height:260px"><canvas id="monthlyChart"></canvas></div>
       </div>
       <div class="card">
-        <div class="card-title">יתרות חשבונות</div>
+        <div class="card-title">סיכום תיקים</div>
         <div id="dashAccounts"></div>
       </div>
     </div>
     <div class="two-col" style="margin-top:1.25rem">
       <div class="card">
-        <div class="card-title">תקציב מול בפועל – החודש</div>
+        <div class="card-title">תכנון מול בפועל – החודש</div>
         <div id="dashBudget"></div>
       </div>
       <div class="card">
@@ -130,11 +130,11 @@
       <div id="dashNonLiquidFlows"></div>
     </div>
     <div class="card" style="margin-top:1.25rem">
-      <div class="card-title">🔮 תחזית תזרים</div>
+      <div class="card-title">🔮 תחזית</div>
       <div id="dashForecast"></div>
     </div>
     <div class="card" style="margin-top:1.25rem">
-      <div class="card-title">עסקאות אחרונות</div>
+      <div class="card-title">פריטים אחרונים</div>
       <div id="recentTx"></div>
     </div>
   </section>
@@ -142,11 +142,11 @@
   <!-- TRANSACTIONS -->
   <section class="screen" id="screen-transactions">
     <div class="page-header" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.75rem">
-      <h1 class="page-title">עסקאות</h1>
+      <h1 class="page-title">תיקים</h1>
       <div style="display:flex;gap:.5rem;flex-wrap:wrap">
         <button class="btn-ghost" onclick="runAutoCategorize()">🔁 סווג אוטומטית</button>
         <button class="btn-ghost" onclick="runGeminiCategorize()">🤖 סווג לא־מסווגים עם AI</button>
-        <button class="btn-primary" onclick="addManualTransaction()">+ עסקה חדשה</button>
+        <button class="btn-primary" onclick="addManualTransaction()">+ פריט חדש</button>
       </div>
     </div>
     <div id="txPeriodSelector"></div>
@@ -156,12 +156,12 @@
           <span class="search-icon">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           </span>
-          <input id="txSearch" placeholder="חיפוש ספק..." oninput="_drawTxTable()">
+          <input id="txSearch" placeholder="חיפוש..." oninput="_drawTxTable()">
         </div>
         <select id="txTypeFilter" onchange="_txPage=0;_drawTxTable()">
           <option value="all">כל הסוגים</option>
-          <option value="income">הכנסות</option>
-          <option value="expense">הוצאות</option>
+          <option value="income">נכנס</option>
+          <option value="expense">יוצא</option>
           <option value="transfer">העברות</option>
           <option value="refund">החזרים</option>
           <option value="uncategorized">ללא קטגוריה</option>
@@ -181,11 +181,11 @@
   <section class="screen" id="screen-import">
     <div class="page-header">
       <h1 class="page-title">ייבוא קובץ</h1>
-      <span class="page-subtitle">PDF, Excel או CSV מהבנק</span>
+      <span class="page-subtitle">PDF, Excel או CSV</span>
     </div>
     <div class="card">
       <div class="modal-row">
-        <label class="form-label">בחר חשבון</label>
+        <label class="form-label">בחר תיק</label>
         <select id="importAccount"></select>
         <div class="error-msg" id="importError"></div>
       </div>
@@ -238,34 +238,34 @@
   <!-- ANALYSIS -->
   <section class="screen" id="screen-analysis">
     <div class="page-header">
-      <h1 class="page-title">ניתוח ותזרים</h1>
+      <h1 class="page-title">ניתוח</h1>
       <span class="page-subtitle" id="analysisPeriodLabel"></span>
     </div>
     <div id="analysisPeriodSelector"></div>
     <div class="stat-grid" id="pnlStats"></div>
 
     <div class="card" style="margin-bottom:1.25rem">
-      <div class="card-title">מגמת הכנסות והוצאות</div>
+      <div class="card-title">מגמה</div>
       <div style="height:280px"><canvas id="trendChart"></canvas></div>
     </div>
 
     <div class="two-col">
       <div class="card">
-        <div class="card-title">הוצאות לפי קטגוריה</div>
+        <div class="card-title">פיזור לפי קטגוריה</div>
         <div style="height:280px"><canvas id="expensePieChart"></canvas></div>
       </div>
       <div class="card">
-        <div class="card-title">פירוט הוצאות</div>
+        <div class="card-title">פירוט יוצא</div>
         <div id="expenseBreakdown"></div>
       </div>
     </div>
     <div class="card" style="margin-top:1.25rem">
-      <div class="card-title">פירוט הכנסות</div>
+      <div class="card-title">פירוט נכנס</div>
       <div id="incomeBreakdown"></div>
     </div>
 
     <div class="card" style="margin-top:1.25rem">
-      <div class="card-title">דוח תזרים מזומנים</div>
+      <div class="card-title">ניתוח תזרים</div>
       <div id="cashFlowStatement"></div>
     </div>
 
@@ -276,14 +276,14 @@
     </div>
 
     <div class="card" style="margin-top:1.25rem">
-      <div class="card-title">Top 10 ספקים בתקופה</div>
+      <div class="card-title">Top 10 שותפים בתקופה</div>
       <div id="topVendors"></div>
     </div>
 
     <div class="card" style="margin-top:1.25rem">
-      <div class="card-title">🤖 יועץ AI</div>
+      <div class="card-title">🤖 עוזר AI</div>
       <div class="chat-messages" id="chatMessages">
-        <div class="chat-empty">שאל שאלה על הנתונים הפיננסיים שלך<br><small>לדוגמה: "מה הקטגוריה היקרה ביותר?"</small></div>
+        <div class="chat-empty">שאל שאלה על הנתונים שלך<br><small>לדוגמה: "מה הקטגוריה היקרה ביותר?"</small></div>
       </div>
       <div class="chat-input-row">
         <input id="chatInput" placeholder="שאל שאלה..." onkeydown="if(event.key==='Enter')sendChat()">
@@ -295,8 +295,8 @@
   <!-- RECURRING -->
   <section class="screen" id="screen-recurring">
     <div class="page-header">
-      <h1 class="page-title">הוצאות / הכנסות קבועות</h1>
-      <span class="page-subtitle">זוהה אוטומטית לפי דפוסי עסקאות חוזרות</span>
+      <h1 class="page-title">פריטים חוזרים</h1>
+      <span class="page-subtitle">זוהה אוטומטית לפי דפוסים חוזרים</span>
     </div>
     <div class="card">
       <div id="recurringList" style="overflow-x:auto;-webkit-overflow-scrolling:touch"></div>
@@ -306,8 +306,8 @@
   <!-- BUDGET -->
   <section class="screen" id="screen-budget">
     <div class="page-header">
-      <h1 class="page-title">תקציב</h1>
-      <span class="page-subtitle">תקציב חודשי לפי קטגוריה, כולל היסטוריה ותכנון קדימה</span>
+      <h1 class="page-title">תכנון</h1>
+      <span class="page-subtitle">תכנון חודשי לפי קטגוריה, כולל היסטוריה ותכנון קדימה</span>
     </div>
     <div class="card">
       <div id="budgetScreenBody"></div>
@@ -317,8 +317,8 @@
   <!-- PROPERTY / MORTGAGE -->
   <section class="screen" id="screen-property">
     <div class="page-header">
-      <h1 class="page-title">משכנתא ונכס</h1>
-      <span class="page-subtitle">מעקב תשלומי רכישה, הון עצמי, משכנתא והחזרים חודשיים</span>
+      <h1 class="page-title">נכסים</h1>
+      <span class="page-subtitle">מעקב פעולות נכס</span>
     </div>
     <div id="propertyBody"></div>
   </section>
@@ -335,40 +335,40 @@
     </div>
 
     <div class="tabs-bar">
-      <button class="tab-btn active" onclick="switchTab('accounts',this)">חשבונות <span id="accCount"></span></button>
+      <button class="tab-btn active" onclick="switchTab('accounts',this)">תיקים <span id="accCount"></span></button>
       <button class="tab-btn" onclick="switchTab('categories',this)">קטגוריות</button>
       <button class="tab-btn" onclick="switchTab('api',this)">מפתח API</button>
       <button class="tab-btn" onclick="switchTab('prompt',this)">הנחיות AI</button>
       <button class="tab-btn" onclick="switchTab('templates',this)">תבניות ייבוא</button>
       <button class="tab-btn" onclick="switchTab('rules',this)">כללי סיווג</button>
-      <button class="tab-btn" onclick="switchTab('aliases',this)">איחוד ספקים</button>
+      <button class="tab-btn" onclick="switchTab('aliases',this)">איחוד שותפים</button>
       <button class="tab-btn" onclick="switchTab('data',this)">ניהול נתונים</button>
       <button class="tab-btn" onclick="switchTab('backup',this)">גיבוי</button>
     </div>
 
     <div class="tab-panel" id="tab-accounts">
       <div style="display:flex;justify-content:flex-end;margin-bottom:1rem">
-        <button class="btn-primary" onclick="toggleAccForm()">+ חשבון חדש</button>
+        <button class="btn-primary" onclick="toggleAccForm()">+ תיק חדש</button>
       </div>
       <div class="card" id="accForm" style="display:none;margin-bottom:1rem">
         <div class="form-grid">
-          <div><label class="form-label">שם החשבון *</label><input id="accName" placeholder='לדוגמה: עו"ש הפועלים'></div>
+          <div><label class="form-label">שם התיק *</label><input id="accName" placeholder='לדוגמה: תיק ראשי'></div>
           <div><label class="form-label">סוג</label>
             <select id="accType" onchange="_onAccTypeChange()">
-              <option value="checking">עו"ש</option>
-              <option value="savings">חיסכון</option>
-              <option value="investment">ני"ע / השקעות</option>
-              <option value="credit_card">כרטיס אשראי</option>
-              <option value="cash">מזומן</option>
+              <option value="checking">תיק ראשי</option>
+              <option value="savings">תיק שמור</option>
+              <option value="investment">תיק נכסים</option>
+              <option value="credit_card">כרטיס</option>
+              <option value="cash">פיזי</option>
             </select>
           </div>
-          <div><label class="form-label">בנק / מוסד</label><input id="accInstitution" placeholder="לדוגמה: בנק הפועלים"></div>
+          <div><label class="form-label">מוסד</label><input id="accInstitution" placeholder="לדוגמה: מוסד מנהל"></div>
           <div><label class="form-label">יתרה פתיחה (₪)</label><input id="accBalance" type="number" value="0"></div>
         </div>
         <div id="accPatternsRow" style="display:none;margin-top:1rem">
-          <label class="form-label">דפוסי זיהוי בבנק (שורה לכל ביטוי)</label>
-          <textarea id="accPatterns" rows="3" placeholder='לדוגמה:&#10;ויזה כאל&#10;הפקדה לחיסכון&#10;העברה לבית השקעות'></textarea>
-          <div style="font-size:.75rem;color:var(--text-muted);margin-top:.3rem">ביטויים אלה ישמשו לזיהוי העברות אל החשבון (אשראי / חיסכון / ני"ע) בדפי הבנק וסימון אוטומטי כ"העברה"</div>
+          <label class="form-label">דפוסי זיהוי (שורה לכל ביטוי)</label>
+          <textarea id="accPatterns" rows="3" placeholder='לדוגמה:&#10;ביטוי 1&#10;ביטוי 2&#10;ביטוי 3'></textarea>
+          <div style="font-size:.75rem;color:var(--text-muted);margin-top:.3rem">ביטויים אלה ישמשו לזיהוי העברות אל התיק בדוחות וסימון אוטומטי כ"העברה"</div>
         </div>
         <div id="accBillingDayRow" style="display:none;margin-top:1rem">
           <label class="form-label">יום חיוב בחודש (1–31)</label>
@@ -382,7 +382,7 @@
       </div>
       <div id="accList"></div>
       <div style="margin-top:1rem">
-        <button class="btn-ghost" onclick="runAutoLinkTransfers()">🔍 סרוק עסקאות ובצע קישור אוטומטי לחשבונות (אשראי, חיסכון, ני"ע)</button>
+        <button class="btn-ghost" onclick="runAutoLinkTransfers()">🔍 סרוק וקשר אוטומטית בין תיקים</button>
       </div>
     </div>
 
@@ -429,7 +429,7 @@
       <div class="card">
         <div class="card-title">הנחיות AI לניתוח קבצים</div>
         <p style="font-size:.85rem;color:var(--text-muted);margin-bottom:1rem">
-          ההנחיות האלה נשלחות ל-Gemini בכל פעם שאתה מעלה קובץ. אפשר להתאים אותן לפורמט הבנק שלך.
+          ההנחיות האלה נשלחות ל-Gemini בכל פעם שאתה מעלה קובץ. אפשר להתאים אותן לפורמט הקובץ שלך.
         </p>
         <textarea id="promptInput" rows="14" style="width:100%;font-family:inherit;font-size:.85rem;line-height:1.6;resize:vertical"></textarea>
         <div style="display:flex;align-items:center;gap:.75rem;margin-top:.75rem;flex-wrap:wrap">
@@ -444,7 +444,7 @@
       <div class="card">
         <div class="card-title">תבניות ייבוא</div>
         <p style="font-size:.85rem;color:var(--text-muted);margin-bottom:1rem">
-          בייבוא ראשון מכל מקור (דף בנק, דוח אשראי) המערכת שואלת מיפוי עמודות ושומרת אותו כתבנית.
+          בייבוא ראשון מכל מקור המערכת שואלת מיפוי עמודות ושומרת אותו כתבנית.
           בייבואים הבאים מאותו מקור — הפרסור יהיה דטרמיניסטי לחלוטין (ללא AI, ללא טעויות).
         </p>
         <div id="templatesList"></div>
@@ -627,7 +627,7 @@
 <div class="modal-overlay" id="expenseBreakdownModal">
   <div class="modal-box" style="max-width:640px">
     <div class="modal-header">
-      <h3>פירוט הוצאות – כל הקטגוריות</h3>
+      <h3>פירוט יוצא – כל הקטגוריות</h3>
       <button class="modal-close" onclick="closeExpenseBreakdownModal()">✕</button>
     </div>
     <div id="expenseBreakdownModalBody"></div>
@@ -669,7 +669,7 @@
 <div class="modal-overlay" id="mortgagePaidModal">
   <div class="modal-box modal-box-wide">
     <div class="modal-header">
-      <h3>פירוט תשלומי משכנתא</h3>
+      <h3>פירוט תשלומים</h3>
       <button class="modal-close" onclick="closeMortgagePaidModal()">✕</button>
     </div>
     <div id="mortgagePaidBody"></div>
@@ -735,23 +735,23 @@
   <button onclick="applyUpdate()">עדכן עכשיו</button>
 </div>
 
-<script>const _v = '1.21.13';</script>
-<script src="app.js?v=1.21.13"></script>
-<script src="core.js?v=1.21.13"></script>
-<script src="templates.js?v=1.21.13"></script>
-<script src="autocat.js?v=1.21.13"></script>
-<script src="budget.js?v=1.21.13"></script>
-<script src="budgetGen.js?v=1.21.13"></script>
-<script src="recurring.js?v=1.21.13"></script>
-<script src="dashboard.js?v=1.21.13"></script>
-<script src="transactions.js?v=1.21.13"></script>
-<script src="wizard.js?v=1.21.13"></script>
-<script src="import.js?v=1.21.13"></script>
-<script src="analysis.js?v=1.21.13"></script>
-<script src="settings.js?v=1.21.13"></script>
-<script src="drive.js?v=1.21.13"></script>
-<script src="property.js?v=1.21.13"></script>
-<script src="scrollMirror.js?v=1.21.13"></script>
+<script>const _v = '1.21.14';</script>
+<script src="app.js?v=1.21.14"></script>
+<script src="core.js?v=1.21.14"></script>
+<script src="templates.js?v=1.21.14"></script>
+<script src="autocat.js?v=1.21.14"></script>
+<script src="budget.js?v=1.21.14"></script>
+<script src="budgetGen.js?v=1.21.14"></script>
+<script src="recurring.js?v=1.21.14"></script>
+<script src="dashboard.js?v=1.21.14"></script>
+<script src="transactions.js?v=1.21.14"></script>
+<script src="wizard.js?v=1.21.14"></script>
+<script src="import.js?v=1.21.14"></script>
+<script src="analysis.js?v=1.21.14"></script>
+<script src="settings.js?v=1.21.14"></script>
+<script src="drive.js?v=1.21.14"></script>
+<script src="property.js?v=1.21.14"></script>
+<script src="scrollMirror.js?v=1.21.14"></script>
 
 <!-- SERVICE WORKER REGISTRATION & UPDATE LOGIC -->
 <script>
