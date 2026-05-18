@@ -4,16 +4,26 @@
 // (no monthKey) get migrated to the CURRENT month via migrateBudgetMonthly_v2,
 // so the previous user's single-record-per-category still tracks this month.
 //
-// UNFORESEEN_ID is a virtual expense-only category for a "בלת״ם" plug slot.
-// Its actual is the sum of every expense tx in the month whose category has
-// no budget row (i.e., the spend nobody planned for). A user can manually
-// untick a tx from the unforeseen modal to set t.excludeFromUnforeseen=true,
-// dropping it from the sum without changing the tx's category.
+// Two virtual "residual" categories catch txs that aren't covered by another
+// budget row: UNFORESEEN_ID for expenses (בלת״ם), OTHER_INCOME_ID for income
+// (הכנסות אחרות). Every budget row — residual or normal — can be opened in a
+// modal that lists the contributing txs with a per-tx exclude toggle.
+// t.excludeFromBudget=true drops a tx from EVERY budget row it would feed
+// (its category row and the residual fallback).
 
 const UNFORESEEN_ID = '__unforeseen__'
 const UNFORESEEN_NAME = 'בלת״ם'
 const UNFORESEEN_ICON = '🎲'
 const UNFORESEEN_COLOR = '#a78bfa'
+
+const OTHER_INCOME_ID = '__other_income__'
+const OTHER_INCOME_NAME = 'הכנסות אחרות'
+const OTHER_INCOME_ICON = '💵'
+const OTHER_INCOME_COLOR = '#22d3ee'
+
+function _isUnforeseen(catId)  { return catId === UNFORESEEN_ID }
+function _isOtherIncome(catId) { return catId === OTHER_INCOME_ID }
+function _isResidual(catId)    { return _isUnforeseen(catId) || _isOtherIncome(catId) }
 
 function getBudgets() { return DB.get('finBudgets', []) }
 function saveBudgets(b) { DB.set('finBudgets', b) }
@@ -66,7 +76,28 @@ function deleteBudget(categoryId, monthKey) {
   saveBudgets(getBudgets().filter(b => !(b.categoryId === categoryId && b.monthKey === monthKey)))
 }
 
-function _isUnforeseen(catId) { return catId === UNFORESEEN_ID }
+// Rename excludeFromUnforeseen → excludeFromBudget. Old field only dropped
+// the tx from the בלת״ם sum (it counted in its own category anyway). New
+// field drops the tx from every budget row, which is a superset — and for
+// uncovered txs (the only ones the old flag affected) the behaviour is
+// identical.
+function migrateExcludeFromUnforeseen_v1() {
+  if (localStorage.getItem('migration_exclude_from_budget_v1') === '1') return
+  const txs = getTransactions()
+  let changed = 0
+  txs.forEach(t => {
+    if (t.excludeFromUnforeseen && !t.excludeFromBudget) {
+      t.excludeFromBudget = true
+      changed++
+    }
+    if (t.excludeFromUnforeseen !== undefined) {
+      delete t.excludeFromUnforeseen
+      changed++
+    }
+  })
+  if (changed > 0) DB.set('finTransactions', txs)
+  localStorage.setItem('migration_exclude_from_budget_v1', '1')
+}
 
 // CC lump detection — figure out which credit_card account a bank-side
 // outflow is paying, so we can decide whether to drop it from the budget.
@@ -143,6 +174,7 @@ function _shouldDropCcLump(t, ctx) {
 }
 
 function budgetExpenseAmount(t, ctx) {
+  if (t.excludeFromBudget) return 0
   if (t.type === 'transfer') return 0
   if (ctx.savingsInvestIds.has(t.accountId)) return 0
   if (_shouldDropCcLump(t, ctx)) return 0
@@ -151,11 +183,20 @@ function budgetExpenseAmount(t, ctx) {
   return 0
 }
 
-// Synthesizes a "category" object for the unforeseen slot so UI code can
-// stay uniform. Real categories go through getCategoryById.
+function budgetIncomeAmount(t) {
+  if (t.excludeFromBudget) return 0
+  if (!isCountedIncome(t)) return 0
+  return t.amount
+}
+
+// Synthesizes a "category" object for residual slots so UI code can stay
+// uniform. Real categories go through getCategoryById.
 function _budgetCategoryProxy(catId) {
   if (_isUnforeseen(catId)) {
     return { id: UNFORESEEN_ID, name: UNFORESEEN_NAME, icon: UNFORESEEN_ICON, color: UNFORESEEN_COLOR, type: 'expense', _virtual: true }
+  }
+  if (_isOtherIncome(catId)) {
+    return { id: OTHER_INCOME_ID, name: OTHER_INCOME_NAME, icon: OTHER_INCOME_ICON, color: OTHER_INCOME_COLOR, type: 'income', _virtual: true }
   }
   return getCategoryById(catId)
 }
@@ -168,80 +209,115 @@ function _budgetCategoryProxy(catId) {
 // food / fuel / etc.). When the CC account is detail-free, the lump still
 // counts — otherwise the user has no visibility into that spend at all.
 //
-// The unforeseen row's actual is the sum of every expense tx whose category
-// is NOT covered by another budget row, minus any tx with excludeFromUnforeseen
-// set. unforeseenTxIds is returned alongside so the editor modal can list the
-// exact transactions feeding the row.
+// The residual rows (UNFORESEEN_ID for expense, OTHER_INCOME_ID for income)
+// aggregate every tx whose category isn't covered by another budget row in
+// the same direction. Any tx with t.excludeFromBudget=true is dropped from
+// the residual AND from its own-category sum (a global "ignore in budget").
 function computeBudgetStatus(monthKey) {
   const budgets = getBudgetsForMonth(monthKey)
   const txs = getTransactions().filter(t => getTxEffectiveMonth(t) === monthKey)
   const ctx = _budgetMonthContext(txs)
+  const sets = _coveredCatSets(budgets)
 
-  const coveredCatIds = new Set(
-    budgets
-      .filter(b => (b.type || 'expense') === 'expense' && !_isUnforeseen(b.categoryId))
-      .map(b => b.categoryId)
-  )
-  const unforeseenTxIds = []
+  // Synthesize residual budget stubs if the user hasn't set one explicitly.
+  // The residual actual must always surface — otherwise un-budgeted expenses
+  // / incomes silently vanish from the screen and the totals.
+  const allBudgets = budgets.slice()
+  if (!allBudgets.some(b => _isUnforeseen(b.categoryId))) {
+    allBudgets.push({ categoryId: UNFORESEEN_ID, monthKey, amount: 0, type: 'expense', _synthetic: true })
+  }
+  if (!allBudgets.some(b => _isOtherIncome(b.categoryId))) {
+    allBudgets.push({ categoryId: OTHER_INCOME_ID, monthKey, amount: 0, type: 'income', _synthetic: true })
+  }
 
-  return budgets.map(b => {
+  return allBudgets.map(b => {
     const cat = _budgetCategoryProxy(b.categoryId)
     const type = b.type || 'expense'
     let actual = 0
     if (_isUnforeseen(b.categoryId)) {
       for (const t of txs) {
-        if (t.excludeFromUnforeseen) continue
-        if (t.categoryId && coveredCatIds.has(t.categoryId)) continue
-        const amt = budgetExpenseAmount(t, ctx)
-        if (amt === 0) continue
-        actual += amt
-        unforeseenTxIds.push(t.id)
+        if (t.categoryId && sets.expense.has(t.categoryId)) continue
+        actual += budgetExpenseAmount(t, ctx)
+      }
+    } else if (_isOtherIncome(b.categoryId)) {
+      for (const t of txs) {
+        if (t.categoryId && sets.income.has(t.categoryId)) continue
+        actual += budgetIncomeAmount(t)
       }
     } else {
       const catTxs = txs.filter(t => t.categoryId === b.categoryId)
       actual = type === 'income'
-        ? catTxs.filter(isCountedIncome).reduce((s,t)=>s+t.amount,0)
+        ? catTxs.reduce((s,t)=>s+budgetIncomeAmount(t),0)
         : catTxs.reduce((s,t)=>s+budgetExpenseAmount(t, ctx),0)
     }
     const budget = b.amount
     const remaining = budget - actual
     const pct = budget > 0 ? (actual / budget) * 100 : 0
-    const out = { ...b, type, cat, budget, actual, remaining, pct, isUnforeseen: _isUnforeseen(b.categoryId) }
-    if (_isUnforeseen(b.categoryId)) out.unforeseenTxIds = unforeseenTxIds
-    return out
+    return { ...b, type, cat, budget, actual, remaining, pct, isResidual: _isResidual(b.categoryId) }
   }).sort((a,b) => b.pct - a.pct)
 }
 
-// Transactions that would feed the unforeseen row (used by the editor modal
-// even when the user hasn't set an unforeseen budget yet). Returns an array
-// of {tx, amount} sorted by amount desc.
-function computeUnforeseenTxs(monthKey, { includeExcluded = false } = {}) {
+function _coveredCatSets(budgets) {
+  const expense = new Set()
+  const income = new Set()
+  budgets.forEach(b => {
+    if (_isResidual(b.categoryId)) return
+    const t = b.type || 'expense'
+    if (t === 'expense') expense.add(b.categoryId)
+    else if (t === 'income') income.add(b.categoryId)
+  })
+  return { expense, income }
+}
+
+// Transactions that would feed a specific budget row, used by the editor
+// modal. Works whether or not a budget record exists yet — `catId` may be a
+// real category or one of the virtual residual ids.
+//   { includeExcluded: true } → also lists txs the user has set
+//   excludeFromBudget on (rendered greyed-out so they can be re-included).
+function computeBudgetRowTxs(catId, monthKey, type, { includeExcluded = false } = {}) {
   const budgets = getBudgetsForMonth(monthKey)
   const txs = getTransactions().filter(t => getTxEffectiveMonth(t) === monthKey)
   const ctx = _budgetMonthContext(txs)
-  const coveredCatIds = new Set(
-    budgets
-      .filter(b => (b.type || 'expense') === 'expense' && !_isUnforeseen(b.categoryId))
-      .map(b => b.categoryId)
-  )
+  const sets = _coveredCatSets(budgets)
+  const effType = type || (_isOtherIncome(catId) ? 'income' : 'expense')
+
+  const amountFor = effType === 'income'
+    ? ((t) => isCountedIncome(t) ? t.amount : 0)
+    : ((t) => {
+        // Same as budgetExpenseAmount but ignoring excludeFromBudget so we can
+        // show excluded rows in the modal too.
+        if (t.type === 'transfer') return 0
+        if (ctx.savingsInvestIds.has(t.accountId)) return 0
+        if (_shouldDropCcLump(t, ctx)) return 0
+        if (t.type === 'refund' && t.amount > 0) return -t.amount
+        if (t.amount < 0) return Math.abs(t.amount)
+        return 0
+      })
+
+  const matchesRow = (t) => {
+    if (_isUnforeseen(catId)) return !(t.categoryId && sets.expense.has(t.categoryId))
+    if (_isOtherIncome(catId)) return !(t.categoryId && sets.income.has(t.categoryId))
+    return t.categoryId === catId
+  }
+
   const out = []
   for (const t of txs) {
-    if (t.categoryId && coveredCatIds.has(t.categoryId)) continue
-    const amt = budgetExpenseAmount(t, ctx)
+    if (!matchesRow(t)) continue
+    const amt = amountFor(t)
     if (amt === 0) continue
-    if (!includeExcluded && t.excludeFromUnforeseen) continue
+    if (!includeExcluded && t.excludeFromBudget) continue
     out.push({ tx: t, amount: amt })
   }
   out.sort((a, b) => b.amount - a.amount)
   return out
 }
 
-function setTxExcludeFromUnforeseen(txId, exclude) {
+function setTxExcludeFromBudget(txId, exclude) {
   const txs = getTransactions()
   const idx = txs.findIndex(t => t.id === txId)
   if (idx < 0) return
-  if (exclude) txs[idx].excludeFromUnforeseen = true
-  else delete txs[idx].excludeFromUnforeseen
+  if (exclude) txs[idx].excludeFromBudget = true
+  else delete txs[idx].excludeFromBudget
   DB.set('finTransactions', txs)
 }
 
@@ -266,7 +342,10 @@ function renderBudgetCard(containerId, monthKey) {
   if (!el) return
   const { rows, expBudget, expActual, incBudget, incActual } = computeBudgetTotals(monthKey)
   const openBtn = `<button class="btn-ghost" onclick="openBudgetScreenAtMonth('${monthKey}')">🔍 הרחב למסך תקציב ↗</button>`
-  if (rows.length === 0) {
+  // Synthetic residual rows always exist; treat the card as empty unless
+  // the user set something OR there are uncovered actuals worth showing.
+  const hasContent = rows.some(r => !r._synthetic || r.actual > 0)
+  if (!hasContent) {
     el.innerHTML = `
       <p style="color:var(--text-muted);font-size:.85rem;text-align:center;padding:1rem 0">לא הוגדרו תקציבים לחודש זה.</p>
       <div style="text-align:center">${openBtn}</div>`
@@ -395,7 +474,8 @@ function _renderBudgetScreenTable(monthKey, readOnly) {
   const rowByKey = {}
   statusRows.forEach(r => { rowByKey[r.categoryId + '|' + r.type] = r })
 
-  const row = (c, type) => {
+  const row = (c, type, opts = {}) => {
+    const { residual = false, residualTag = '', residualRowCls = '', residualTitle = '' } = opts
     const key = c.id + '|' + type
     const b = byKey[key]
     const status = rowByKey[key]
@@ -419,46 +499,39 @@ function _renderBudgetScreenTable(monthKey, readOnly) {
              data-cat="${c.id}" data-type="${type}" data-month="${monthKey}"
              class="budget-input" onchange="onBudgetScreenChange(this)">
          </div>`
-    const onClick = `navigateBudgetCatToTx('${c.id}','${monthKey}')`
+    const onClick = `openBudgetRowModal('${c.id}','${monthKey}','${type}')`
+    const tag = residualTag ? ` <span class="budget-unforeseen-tag" title="${residualTitle}">${residualTag}</span>` : ''
+    const linkTitle = residual ? residualTitle : 'ערוך אילו עסקאות נכללות בשורה זו'
     return `
-      <div class="budget-screen-row ${cls}">
+      <div class="budget-screen-row ${residualRowCls} ${cls}">
         <span class="budget-screen-cat budget-screen-cat-link" role="link" tabindex="0"
-              onclick="${onClick}" title="הצג עסקאות בקטגוריה זו לחודש זה">${c.icon||'📋'} ${c.name}</span>
+              onclick="${onClick}" title="${linkTitle}">${c.icon||'📋'} ${c.name}${tag}</span>
         <span class="budget-screen-actual-wrap" onclick="${onClick}" style="cursor:pointer">${actualCell}</span>
         ${input}
         <div class="budget-screen-bar-track"><div class="budget-screen-bar-fill" style="width:${pct}%"></div></div>
       </div>`
   }
 
-  const uKey = UNFORESEEN_ID + '|expense'
-  const uB = byKey[uKey]
-  const uStatus = rowByKey[uKey]
-  const uActual = uStatus?.actual ?? 0
-  const uBudget = uB?.amount ?? 0
-  const uRawPct = uBudget > 0 ? (uActual / uBudget) * 100 : 0
-  const uPct = Math.min(100, uRawPct)
-  const uCls = uRawPct >= 100 ? 'budget-over' : uRawPct >= 90 ? 'budget-danger' : uRawPct >= 70 ? 'budget-warn' : uRawPct > 0 ? 'budget-ok' : ''
-  const uActualCell = uActual > 0 || uBudget > 0
-    ? `<span class="budget-screen-actual expense-color">${formatCurrency(uActual)}</span>`
-    : '<span class="budget-screen-actual" style="color:var(--text-muted)">—</span>'
-  const uInput = readOnly
-    ? `<span class="budget-screen-budget">${uB?.amount > 0 ? formatCurrency(uB.amount) : '—'}</span>`
-    : `<div class="budget-input-wrap">
-         <span class="budget-currency">₪</span>
-         <input type="number" min="0" step="10" value="${uB?.amount || ''}" placeholder="0"
-           data-cat="${UNFORESEEN_ID}" data-type="expense" data-month="${monthKey}"
-           class="budget-input" onchange="onBudgetScreenChange(this)">
-       </div>`
-  const uOnClick = `openUnforeseenModal('${monthKey}')`
-  const uRow = `
-    <div class="budget-screen-row budget-unforeseen-row ${uCls}">
-      <span class="budget-screen-cat budget-screen-cat-link" role="link" tabindex="0"
-            onclick="${uOnClick}" title="ערוך אילו עסקאות נכללות בבלת״ם">${UNFORESEEN_ICON} ${UNFORESEEN_NAME}
-        <span class="budget-unforeseen-tag" title="סוכם כל הוצאה ללא תקציב משלה. לחיצה פותחת עורך כדי להוציא ידנית עסקאות שלא צריכות להיכלל">אוטומטי</span></span>
-      <span class="budget-screen-actual-wrap" onclick="${uOnClick}" style="cursor:pointer">${uActualCell}</span>
-      ${uInput}
-      <div class="budget-screen-bar-track"><div class="budget-screen-bar-fill" style="width:${uPct}%"></div></div>
-    </div>`
+  const uRow = row(
+    _budgetCategoryProxy(UNFORESEEN_ID),
+    'expense',
+    {
+      residual: true,
+      residualTag: 'אוטומטי',
+      residualRowCls: 'budget-unforeseen-row',
+      residualTitle: 'סוכם כל הוצאה ללא תקציב משלה. לחיצה פותחת עורך כדי להוציא ידנית עסקאות שלא צריכות להיכלל',
+    }
+  )
+  const oiRow = row(
+    _budgetCategoryProxy(OTHER_INCOME_ID),
+    'income',
+    {
+      residual: true,
+      residualTag: 'אוטומטי',
+      residualRowCls: 'budget-other-income-row',
+      residualTitle: 'סוכמת כל הכנסה ללא יעד תקציב משלה. לחיצה פותחת עורך כדי להוציא ידנית הכנסות שלא צריכות להיכלל',
+    }
+  )
 
   return `
     <div class="budget-screen-section">
@@ -478,6 +551,7 @@ function _renderBudgetScreenTable(monthKey, readOnly) {
       </div>
       <div class="budget-screen-table">
         ${incCats.map(c => row(c, 'income')).join('')}
+        ${oiRow}
       </div>
     </div>`
 }
@@ -546,71 +620,89 @@ function openBudgetGenModalForMonth(monthKey) {
   if (typeof openBudgetGenModal === 'function') openBudgetGenModal(monthKey)
 }
 
-// ===== UNFORESEEN EDITOR =====
-// Lists every tx that currently feeds (or could feed) the בלת״ם row for the
-// given month, with a per-tx checkbox controlling t.excludeFromUnforeseen.
-// includeExcluded=true so the user can re-add a previously excluded tx.
-let _unforeseenModalMonth = null
+// ===== BUDGET ROW EDITOR =====
+// Lists every tx that currently feeds (or could feed) the selected budget
+// row for the given month, with a per-tx checkbox controlling
+// t.excludeFromBudget. Works for normal categories (income/expense) and for
+// the two residual rows (UNFORESEEN_ID, OTHER_INCOME_ID).
+let _budgetRowModalState = null
 
-function openUnforeseenModal(monthKey) {
-  _unforeseenModalMonth = monthKey
-  _renderUnforeseenModal()
-  document.getElementById('unforeseenModal')?.classList.add('open')
+function openBudgetRowModal(catId, monthKey, type) {
+  const effType = type || (_isOtherIncome(catId) ? 'income' : 'expense')
+  _budgetRowModalState = { catId, monthKey, type: effType }
+  _renderBudgetRowModal()
+  document.getElementById('budgetRowModal')?.classList.add('open')
 }
 
-function closeUnforeseenModal() {
-  document.getElementById('unforeseenModal')?.classList.remove('open')
+function closeBudgetRowModal() {
+  document.getElementById('budgetRowModal')?.classList.remove('open')
 }
 
-function _renderUnforeseenModal() {
-  const body = document.getElementById('unforeseenBody')
-  const title = document.getElementById('unforeseenTitle')
-  if (!body || !_unforeseenModalMonth) return
-  const monthKey = _unforeseenModalMonth
-  if (title) title.textContent = `בלת״ם – ${_budgetFormatMonth(monthKey)}`
-  const rows = computeUnforeseenTxs(monthKey, { includeExcluded: true })
-  const includedTotal = rows.filter(r => !r.tx.excludeFromUnforeseen).reduce((s, r) => s + r.amount, 0)
-  const excludedCount = rows.filter(r => r.tx.excludeFromUnforeseen).length
+function _renderBudgetRowModal() {
+  const state = _budgetRowModalState
+  const body = document.getElementById('budgetRowBody')
+  const title = document.getElementById('budgetRowTitle')
+  if (!body || !state) return
+  const { catId, monthKey, type } = state
+  const cat = _budgetCategoryProxy(catId)
+  const catLabel = cat ? `${cat.icon || '📋'} ${cat.name}` : 'קטגוריה'
+  if (title) title.textContent = `${catLabel} – ${_budgetFormatMonth(monthKey)}`
+
+  const rows = computeBudgetRowTxs(catId, monthKey, type, { includeExcluded: true })
+  const isIncome = type === 'income'
+  const amtCls = isIncome ? 'income-color' : 'expense-color'
+  const isResidual = _isResidual(catId)
+  const intro = isResidual
+    ? (isIncome
+        ? 'כל הכנסה ללא יעד תקציב משלה נכללת אוטומטית בהכנסות אחרות. הסר סימון מהכנסות שאינן צריכות להיספר כאן.'
+        : 'כל הוצאה ללא תקציב משלה נכללת אוטומטית בבלת״ם. הסר סימון מעסקאות שאינן צריכות להיספר כאן.')
+    : 'כל העסקאות בקטגוריה זו לחודש זה. הסר סימון מעסקאות שלא צריכות להיכלל בחישוב התקציב.'
 
   if (rows.length === 0) {
     body.innerHTML = `
-      <p style="color:var(--text-muted);padding:1.5rem;text-align:center">
-        אין עסקאות ללא תקציב בחודש ${_budgetFormatMonth(monthKey)}.
-      </p>`
+      <div style="color:var(--text-muted);font-size:.85rem;margin-bottom:.75rem">${intro}</div>
+      <p style="color:var(--text-muted);padding:1.5rem;text-align:center">אין עסקאות מתאימות בחודש זה.</p>`
     return
   }
 
+  const includedTotal = rows.filter(r => !r.tx.excludeFromBudget).reduce((s, r) => s + r.amount, 0)
+  const excludedCount = rows.filter(r => r.tx.excludeFromBudget).length
+
   const lines = rows.map(({ tx, amount }) => {
-    const cat = tx.categoryId ? getCategoryById(tx.categoryId) : null
-    const catLabel = cat ? `${cat.icon || '📋'} ${cat.name}` : '<span style="color:var(--text-muted)">ללא קטגוריה</span>'
+    const c = tx.categoryId ? getCategoryById(tx.categoryId) : null
+    const catLbl = c ? `${c.icon || '📋'} ${c.name}` : '<span style="color:var(--text-muted)">ללא קטגוריה</span>'
     const vendor = (typeof resolveVendor === 'function')
       ? (resolveVendor(tx.vendor, tx.amount, typeof getTxAliasDay === 'function' ? getTxAliasDay(tx) : null) || tx.vendor || '')
       : (tx.vendor || '')
-    const included = !tx.excludeFromUnforeseen
+    const included = !tx.excludeFromBudget
     return `
       <label class="unforeseen-row ${included ? '' : 'unforeseen-row-excluded'}">
-        <input type="checkbox" ${included ? 'checked' : ''} onchange="_toggleUnforeseenTx('${tx.id}', this.checked)">
+        <input type="checkbox" ${included ? 'checked' : ''} onchange="_toggleBudgetRowTx('${tx.id}', this.checked)">
         <span class="unforeseen-row-date">${tx.date || ''}</span>
         <span class="unforeseen-row-vendor">${vendor}</span>
-        <span class="unforeseen-row-cat">${catLabel}</span>
-        <span class="unforeseen-row-amt expense-color">${formatCurrency(amount)}</span>
+        <span class="unforeseen-row-cat">${catLbl}</span>
+        <span class="unforeseen-row-amt ${amtCls}">${formatCurrency(amount)}</span>
       </label>`
   }).join('')
 
+  const drillBtn = isResidual
+    ? ''
+    : `<button class="btn-ghost" onclick="navigateBudgetCatToTx('${catId}','${monthKey}'); closeBudgetRowModal()">↗ פתח במסך עסקאות</button>`
+
   body.innerHTML = `
-    <div style="color:var(--text-muted);font-size:.85rem;margin-bottom:.75rem">
-      כל הוצאה שאין לה תקציב משלה נכללת אוטומטית בבלת״ם.
-      הסר סימון מעסקאות שאינן צריכות להיספר כאן.
-    </div>
-    <div style="display:flex;justify-content:space-between;gap:.75rem;font-weight:600;margin-bottom:.5rem">
-      <span>נכלל בבלת״ם: <span class="expense-color">${formatCurrency(includedTotal)}</span></span>
-      <span style="color:var(--text-muted)">${excludedCount > 0 ? `הוצאו ידנית: ${excludedCount}` : ''}</span>
+    <div style="color:var(--text-muted);font-size:.85rem;margin-bottom:.75rem">${intro}</div>
+    <div style="display:flex;justify-content:space-between;gap:.75rem;font-weight:600;margin-bottom:.5rem;flex-wrap:wrap">
+      <span>נכלל בחישוב: <span class="${amtCls}">${formatCurrency(includedTotal)}</span></span>
+      <span style="display:flex;gap:.75rem;align-items:center">
+        ${excludedCount > 0 ? `<span style="color:var(--text-muted)">הוצאו ידנית: ${excludedCount}</span>` : ''}
+        ${drillBtn}
+      </span>
     </div>
     <div class="unforeseen-list">${lines}</div>`
 }
 
-function _toggleUnforeseenTx(txId, included) {
-  setTxExcludeFromUnforeseen(txId, !included)
-  _renderUnforeseenModal()
+function _toggleBudgetRowTx(txId, included) {
+  setTxExcludeFromBudget(txId, !included)
+  _renderBudgetRowModal()
   if (typeof renderBudgetScreen === 'function') renderBudgetScreen()
 }

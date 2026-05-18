@@ -1,4 +1,4 @@
-const APP_VERSION = '1.21.19'
+const APP_VERSION = '1.21.20'
 
 // ===== STORAGE =====
 const DB = {
@@ -607,6 +607,7 @@ document.addEventListener('DOMContentLoaded', () => {
   migrateRecurringCriteriaToAliases_v1()
   migrateBudgetType_v1()
   migrateBudgetMonthly_v2()
+  if (typeof migrateExcludeFromUnforeseen_v1 === 'function') migrateExcludeFromUnforeseen_v1()
   if (typeof migrateManualGroupVendorKeys_v1 === 'function') migrateManualGroupVendorKeys_v1()
   navigate('dashboard')
 
