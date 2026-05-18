@@ -195,7 +195,6 @@ function periodPresets() {
     { key: 'last_6m',     label: '6 חודשים אחרונים',    start: _iso(new Date(now.getFullYear(), now.getMonth()-5, 1)), end: _iso(now) },
     { key: 'last_12m',    label: '12 חודשים אחרונים',   start: _iso(new Date(now.getFullYear(), now.getMonth()-11,1)), end: _iso(now) },
     { key: 'ytd',         label: 'מתחילת השנה',        start: _iso(new Date(now.getFullYear(), 0, 1)),          end: _iso(now) },
-    { key: 'this_year',   label: 'שנה נוכחית',          start: _iso(new Date(now.getFullYear(), 0, 1)),          end: _iso(new Date(now.getFullYear(), 11, 31)) },
     { key: 'last_year',   label: 'שנה קודמת',           start: _iso(new Date(now.getFullYear()-1, 0, 1)),        end: _iso(new Date(now.getFullYear()-1, 11, 31)) },
   ]
 }
