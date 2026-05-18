@@ -619,47 +619,6 @@ function recurringMonthlyTotals() {
 function getRecurring() { return getAllRecurring() }
 function refreshRecurring() { return getAllRecurring() }
 
-// ===== CASH FLOW FORECAST =====
-// Projects next N months based on: recurring + rolling 3-month avg of non-recurring counted tx
-function forecastCashFlow(monthsAhead = 3) {
-  const recurring = getRecurring()
-  const recurringKeys = new Set(recurring.map(r => r.key))
-  const now = new Date()
-  // last 3 months of counted non-recurring tx
-  const threeMoAgo = new Date(now.getFullYear(), now.getMonth()-3, 1)
-  const recent = getTransactions().filter(t => {
-    if (!t.date) return false
-    if (new Date(t.date) < threeMoAgo) return false
-    if (recurringKeys.has(_txVendorKey(t))) return false
-    return true
-  })
-  const avgMonthlyIncome = sumIncome(recent) / 3
-  const avgMonthlyExpense = sumExpenses(recent) / 3
-
-  // projected recurring per month — use precomputed smoothedMonthly so
-  // each entry is already a monthly-equivalent regardless of cadence.
-  const recurringMonthlyIncome = recurring.filter(r => r.smoothedMonthly > 0)
-    .reduce((s,r) => s + r.smoothedMonthly, 0)
-  const recurringMonthlyExpense = recurring.filter(r => r.smoothedMonthly < 0)
-    .reduce((s,r) => s + Math.abs(r.smoothedMonthly), 0)
-
-  const projectedIncome = avgMonthlyIncome + recurringMonthlyIncome
-  const projectedExpense = avgMonthlyExpense + recurringMonthlyExpense
-  const monthlyNet = projectedIncome - projectedExpense
-
-  const months = []
-  for (let i = 1; i <= monthsAhead; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() + i, 1)
-    months.push({
-      month: _ym(d),
-      income: projectedIncome,
-      expense: projectedExpense,
-      net: monthlyNet,
-    })
-  }
-  return { months, projectedIncome, projectedExpense, monthlyNet, recurringMonthlyIncome, recurringMonthlyExpense }
-}
-
 // ===== HIDDEN RECURRING =====
 function getHiddenRecurring() { return new Set(DB.get('finRecurringHidden', [])) }
 function setHiddenRecurring(setObj) { DB.set('finRecurringHidden', [...setObj]) }
@@ -1019,27 +978,3 @@ function _renderDrillModal() {
     </div>`
 }
 
-function renderCashFlowForecast(containerId) {
-  const el = document.getElementById(containerId)
-  if (!el) return
-  const f = forecastCashFlow(3)
-  const cls = f.monthlyNet >= 0 ? 'income-color' : 'expense-color'
-  el.innerHTML = `
-    <div class="forecast-main">
-      <div class="forecast-label">תזרים צפוי לחודש הבא</div>
-      <div class="forecast-big ${cls}">${f.monthlyNet>=0?'+':''}${formatCurrency(f.monthlyNet)}</div>
-    </div>
-    <div class="forecast-split">
-      <div><span class="forecast-item-label">הכנסות צפויות</span><span class="forecast-item-val income-color">${formatCurrency(f.projectedIncome)}</span></div>
-      <div><span class="forecast-item-label">הוצאות צפויות</span><span class="forecast-item-val expense-color">${formatCurrency(f.projectedExpense)}</span></div>
-    </div>
-    <div class="forecast-months">
-      ${f.months.map((m, i) => `
-        <div class="forecast-month">
-          <div class="forecast-month-label">+${i+1} חודש</div>
-          <div class="forecast-month-val ${m.net>=0?'income-color':'expense-color'}">${m.net>=0?'+':''}${formatCurrency(m.net)}</div>
-        </div>
-      `).join('')}
-    </div>
-  `
-}

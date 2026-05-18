@@ -520,18 +520,6 @@ select option { background-color: #141417; color: var(--text-primary); }
 .yoy-label { font-weight: 500; }
 .yoy-muted { color: var(--text-muted); }
 
-/* ===== FORECAST ===== */
-.forecast-main { text-align: center; padding: .5rem 0 1rem; border-bottom: 1px solid var(--border); margin-bottom: 1rem; }
-.forecast-label { font-size: .8rem; color: var(--text-muted); margin-bottom: .35rem; }
-.forecast-big { font-size: 1.8rem; font-weight: 800; font-variant-numeric: tabular-nums; }
-.forecast-split { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
-.forecast-split > div { display: flex; flex-direction: column; align-items: center; padding: .75rem; background: var(--bg-elevated); border-radius: 10px; }
-.forecast-item-label { font-size: .75rem; color: var(--text-muted); margin-bottom: .2rem; }
-.forecast-item-val { font-size: 1.05rem; font-weight: 700; }
-.forecast-months { display: grid; grid-template-columns: repeat(3, 1fr); gap: .75rem; }
-.forecast-month { padding: .7rem; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 10px; text-align: center; }
-.forecast-month-label { font-size: .72rem; color: var(--text-muted); margin-bottom: .15rem; }
-.forecast-month-val { font-size: .95rem; font-weight: 700; }
 
 /* ===== MOBILE — see big mobile section at end of file ===== */
 @media (max-width: 768px) {

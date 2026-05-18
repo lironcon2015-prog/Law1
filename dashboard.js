@@ -93,9 +93,6 @@ function renderDashboard() {
   const currentMonth = _ym(new Date())
   renderBudgetCard('dashBudget', currentMonth)
 
-  // Cash flow forecast
-  renderCashFlowForecast('dashForecast')
-
   // Recent transactions (10)
   _renderRecentTx(all)
 }
