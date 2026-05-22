@@ -667,18 +667,7 @@ async function sendChat() {
   _chatMessages.push({ role: 'user', text: msg })
   _renderChat(true)
 
-  const period = getActivePeriod()
-  const all = getTransactions()
-  const periodTx = filterByEffectivePeriod(all, period).slice(0, 100)
-  const income = sumIncome(periodTx)
-  const expenses = sumExpenses(periodTx)
-  const checkingBalance = getCheckingCashBalance()
-
-  const context = `אתה יועץ פיננסי אישי דובר עברית. ענה תמיד בעברית, בצורה תמציתית ומקצועית.
-תקופה: ${period.label || period.start + ' → ' + period.end}
-הכנסות ${formatCurrency(income)}, הוצאות ${formatCurrency(expenses)}, נטו ${formatCurrency(income-expenses)}, יתרת עו"ש/מזומן ${formatCurrency(checkingBalance)}.
-עסקאות לדוגמה (ללא העברות): ${JSON.stringify(periodTx.filter(t => t.type !== 'transfer').slice(0,20))}
-שאלה: ${msg}`
+  const context = _buildChatContext(msg)
 
   try {
     const data = await callGemini(apiKey, { contents:[{ parts:[{ text: context }] }], generationConfig:{ temperature:0.3 } })
@@ -691,6 +680,84 @@ async function sendChat() {
     _chatMessages.push({ role: 'ai', text: 'שגיאה: ' + e.message })
   }
   _renderChat()
+}
+
+function _buildChatContext(question) {
+  const today = new Date()
+  const todayIso = today.toISOString().slice(0, 10)
+  const period = getActivePeriod()
+  const all = getTransactions()
+  const cats = getCategories()
+  const accs = getAccounts()
+  const catName = id => (cats.find(c => c.id === id)?.name) || 'לא מסווג'
+  const accInfo = id => accs.find(a => a.id === id)
+
+  const byMonth = {}
+  for (const t of all) {
+    const em = getTxEffectiveMonth(t)
+    if (!em) continue
+    if (!byMonth[em]) byMonth[em] = { income: 0, expense: 0, count: 0 }
+    if (isCountedIncome(t)) byMonth[em].income += t.amount
+    byMonth[em].expense += countedExpenseAmount(t)
+    byMonth[em].count++
+  }
+  const months = Object.keys(byMonth).sort().slice(-12)
+  const monthlyLines = months.map(m => {
+    const b = byMonth[m]
+    const net = b.income - b.expense
+    return `${m}: הכנסות ${Math.round(b.income)}, הוצאות ${Math.round(b.expense)}, נטו ${net >= 0 ? '+' : ''}${Math.round(net)} (${b.count} עסקאות)`
+  })
+
+  const accBalances = accs.map(a => {
+    const bal = (typeof getAccountBalance === 'function') ? Math.round(getAccountBalance(a.id)) : 0
+    return `${a.name} [${a.type}]: ${bal} ₪`
+  })
+
+  const cutoff = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 120)
+  const cutoffIso = cutoff.toISOString().slice(0, 10)
+  const recent = all
+    .filter(t => t.date && t.date >= cutoffIso && t.type !== 'transfer')
+    .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+    .slice(0, 400)
+    .map(t => {
+      const acc = accInfo(t.accountId)
+      const aliasDay = (typeof getTxAliasDay === 'function') ? getTxAliasDay(t) : null
+      const vendor = (typeof resolveVendor === 'function')
+        ? (resolveVendor(t.vendor, t.amount, aliasDay) || t.vendor || '')
+        : (t.vendor || '')
+      return {
+        date: t.date,
+        effMonth: getTxEffectiveMonth(t),
+        amount: Math.round(t.amount),
+        vendor: vendor,
+        category: catName(t.categoryId),
+        account: acc ? `${acc.name}/${acc.type}` : '—',
+        type: t.type || 'normal',
+      }
+    })
+
+  const periodTx = filterByEffectivePeriod(all, period)
+  const periodInc = sumIncome(periodTx)
+  const periodExp = sumExpenses(periodTx)
+  const checkingBalance = (typeof getCheckingCashBalance === 'function') ? getCheckingCashBalance() : 0
+
+  return `אתה יועץ פיננסי אישי דובר עברית. ענה בעברית, תמציתי ומקצועי. השתמש בכל הנתונים שמצורפים. אם המשתמש שואל על חודש או טווח שלא תואמים לתקופת הצפייה הפעילה, הסתמך על "סיכום חודשי" ו"עסקאות אחרונות" — אל תגביל את עצמך לתקופה הפעילה.
+
+תאריך היום: ${todayIso}
+תקופת הצפייה בממשק כעת: ${period.label || ''} (${period.start} → ${period.end})
+סיכום התקופה הפעילה (לפי P&L, חודש חיוב אפקטיבי): הכנסות ${Math.round(periodInc)} ₪, הוצאות ${Math.round(periodExp)} ₪, נטו ${Math.round(periodInc - periodExp)} ₪
+יתרת עו"ש+מזומן כיום: ${Math.round(checkingBalance)} ₪
+
+יתרות חשבונות (כל סוגי החשבונות):
+${accBalances.join('\n')}
+
+סיכום חודשי — 12 חודשים אחרונים שיש בהם נתונים (effMonth = חודש חיוב אפקטיבי; חיובי אשראי משויכים לחודש שבו ירדו בעו"ש):
+${monthlyLines.join('\n')}
+
+עסקאות 120 הימים האחרונים, ללא העברות (${recent.length} שורות; amount חיובי = הכנסה, שלילי = הוצאה, refund חיובי = החזר שמקטין הוצאות):
+${JSON.stringify(recent)}
+
+שאלת המשתמש: ${question}`
 }
 
 function _renderChat(loading = false) {
