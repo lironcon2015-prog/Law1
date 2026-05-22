@@ -411,7 +411,7 @@
     </div>
 
     <div class="tab-panel" id="tab-api" style="display:none">
-      <div class="card" style="max-width:480px">
+      <div class="card" style="max-width:640px">
         <div class="card-title">מפתח Gemini API</div>
         <p style="font-size:.85rem;color:var(--text-muted);margin-bottom:1rem">
           נדרש לייבוא קבצים ול-AI Chat. קבל מפתח חינמי ב-<a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--accent)">Google AI Studio</a>.
@@ -422,6 +422,31 @@
           <button class="btn-primary" onclick="saveApiKey()">שמור מפתח</button>
           <span id="apiKeyMsg" style="font-size:.85rem"></span>
         </div>
+      </div>
+
+      <div class="card" style="max-width:640px;margin-top:1rem">
+        <div class="card-title">מפל מודלים</div>
+        <p style="font-size:.85rem;color:var(--text-muted);margin-bottom:.5rem">
+          מודל אחד בכל שורה. בקריאה אמיתית — אם המודל הראשון מחזיר 429/503 (עומס) המערכת עוברת אוטומטית למודל הבא ברשימה.
+        </p>
+        <textarea id="modelsInput" rows="4" style="width:100%;font-family:monospace;font-size:.9rem;line-height:1.5;resize:vertical" placeholder="gemini-2.5-flash&#10;gemini-2.5-flash-lite"></textarea>
+        <div style="display:flex;align-items:center;gap:.75rem;margin-top:.75rem;flex-wrap:wrap">
+          <button class="btn-primary" onclick="saveGeminiModelsFromUI()">שמור</button>
+          <button class="btn-ghost" onclick="resetGeminiModelsFromUI()">איפוס לברירת מחדל</button>
+          <span id="modelsMsg" style="font-size:.85rem"></span>
+        </div>
+
+        <hr style="border:none;border-top:1px solid var(--border);margin:1rem 0">
+
+        <label class="form-label">בדיקת מודלים</label>
+        <p style="font-size:.8rem;color:var(--text-muted);margin-bottom:.5rem">
+          שולח את הטקסט שלמטה לכל מודל ברשימה למעלה (גם אם עדיין לא שמרת) ומציג אילו הצליחו ומה הם החזירו.
+        </p>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+          <input id="modelsTestPrompt" type="text" value="בדיקה" style="flex:1;min-width:180px">
+          <button id="modelsTestBtn" class="btn-primary" onclick="runGeminiModelsTest()">הרץ בדיקה</button>
+        </div>
+        <div id="modelsTestResult" style="margin-top:.75rem"></div>
       </div>
     </div>
 
@@ -749,23 +774,23 @@
   <button onclick="applyUpdate()">עדכן עכשיו</button>
 </div>
 
-<script>const _v = '1.21.22';</script>
-<script src="app.js?v=1.21.22"></script>
-<script src="core.js?v=1.21.22"></script>
-<script src="templates.js?v=1.21.22"></script>
-<script src="autocat.js?v=1.21.22"></script>
-<script src="budget.js?v=1.21.22"></script>
-<script src="budgetGen.js?v=1.21.22"></script>
-<script src="recurring.js?v=1.21.22"></script>
-<script src="dashboard.js?v=1.21.22"></script>
-<script src="transactions.js?v=1.21.22"></script>
-<script src="wizard.js?v=1.21.22"></script>
-<script src="import.js?v=1.21.22"></script>
-<script src="analysis.js?v=1.21.22"></script>
-<script src="settings.js?v=1.21.22"></script>
-<script src="drive.js?v=1.21.22"></script>
-<script src="property.js?v=1.21.22"></script>
-<script src="scrollMirror.js?v=1.21.22"></script>
+<script>const _v = '1.21.23';</script>
+<script src="app.js?v=1.21.23"></script>
+<script src="core.js?v=1.21.23"></script>
+<script src="templates.js?v=1.21.23"></script>
+<script src="autocat.js?v=1.21.23"></script>
+<script src="budget.js?v=1.21.23"></script>
+<script src="budgetGen.js?v=1.21.23"></script>
+<script src="recurring.js?v=1.21.23"></script>
+<script src="dashboard.js?v=1.21.23"></script>
+<script src="transactions.js?v=1.21.23"></script>
+<script src="wizard.js?v=1.21.23"></script>
+<script src="import.js?v=1.21.23"></script>
+<script src="analysis.js?v=1.21.23"></script>
+<script src="settings.js?v=1.21.23"></script>
+<script src="drive.js?v=1.21.23"></script>
+<script src="property.js?v=1.21.23"></script>
+<script src="scrollMirror.js?v=1.21.23"></script>
 
 <!-- SERVICE WORKER REGISTRATION & UPDATE LOGIC -->
 <script>

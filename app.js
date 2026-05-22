@@ -1,4 +1,4 @@
-const APP_VERSION = '1.21.22'
+const APP_VERSION = '1.21.23'
 
 // ===== STORAGE =====
 const DB = {
@@ -151,11 +151,24 @@ const DEFAULT_PROMPT = `אתה מנתח דוחות בנק ישראלים. נתח
 
 function getPrompt() { return localStorage.getItem('geminiPrompt') || DEFAULT_PROMPT }
 
-const GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite']
+const DEFAULT_GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite']
+function getGeminiModels() {
+  try {
+    const stored = JSON.parse(localStorage.getItem('geminiModels'))
+    if (Array.isArray(stored) && stored.length) {
+      const cleaned = stored.map(s => String(s || '').trim()).filter(Boolean)
+      if (cleaned.length) return cleaned
+    }
+  } catch {}
+  return DEFAULT_GEMINI_MODELS.slice()
+}
+function setGeminiModels(list) {
+  localStorage.setItem('geminiModels', JSON.stringify(list))
+}
 
 async function callGemini(apiKey, body) {
   let lastError = ''
-  for (const model of GEMINI_MODELS) {
+  for (const model of getGeminiModels()) {
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
       { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
@@ -169,6 +182,32 @@ async function callGemini(apiKey, body) {
     if (!shouldFallback) throw new Error(lastError)
   }
   throw new Error('כל המודלים עמוסים כרגע – נסה שוב בעוד דקה')
+}
+
+async function testGeminiModels(apiKey, promptText, modelsList) {
+  const models = (Array.isArray(modelsList) && modelsList.length) ? modelsList : getGeminiModels()
+  const results = []
+  for (const model of models) {
+    const startedAt = performance.now()
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] }) }
+      )
+      const data = await res.json()
+      const ms = Math.round(performance.now() - startedAt)
+      if (res.ok) {
+        const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
+        results.push({ model, ok: true, ms, reply })
+      } else {
+        results.push({ model, ok: false, ms, error: data.error?.message || `HTTP ${res.status}` })
+      }
+    } catch (e) {
+      results.push({ model, ok: false, ms: Math.round(performance.now() - startedAt), error: e.message || 'Network error' })
+    }
+  }
+  return results
 }
 
 // ===== EXPORT / IMPORT =====

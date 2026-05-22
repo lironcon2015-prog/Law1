@@ -5,6 +5,7 @@ function renderSettings() {
   document.getElementById('apiKeyInput').value = key
   document.getElementById('apiKeyMsg').textContent = key ? '✅ מפתח שמור' : ''
   document.getElementById('apiKeyMsg').style.color = 'var(--income)'
+  loadGeminiModelsToUI()
   document.getElementById('accCount').textContent = `${getAccounts().length} חשבונות`
   document.getElementById('promptInput').value = getPrompt()
   document.getElementById('promptMsg').textContent = ''
@@ -608,4 +609,74 @@ function saveApiKey() {
   localStorage.setItem('geminiApiKey', key)
   document.getElementById('apiKeyMsg').textContent = '✅ מפתח נשמר בהצלחה'
   document.getElementById('apiKeyMsg').style.color = 'var(--income)'
+}
+
+// ===== GEMINI MODELS CASCADE =====
+function loadGeminiModelsToUI() {
+  const ta = document.getElementById('modelsInput')
+  if (!ta) return
+  ta.value = getGeminiModels().join('\n')
+  const msg = document.getElementById('modelsMsg')
+  if (msg) msg.textContent = ''
+  const out = document.getElementById('modelsTestResult')
+  if (out) out.innerHTML = ''
+}
+
+function _parseModelsInput() {
+  const raw = document.getElementById('modelsInput').value || ''
+  return raw.split(/[\n,]+/).map(s => s.trim()).filter(Boolean)
+}
+
+function saveGeminiModelsFromUI() {
+  const list = _parseModelsInput()
+  if (!list.length) { alert('צריך לפחות מודל אחד'); return }
+  setGeminiModels(list)
+  const msg = document.getElementById('modelsMsg')
+  msg.textContent = `✅ נשמרו ${list.length} מודלים`
+  msg.style.color = 'var(--income)'
+}
+
+function resetGeminiModelsFromUI() {
+  if (!confirm('לאפס את מפל המודלים לברירת המחדל?')) return
+  localStorage.removeItem('geminiModels')
+  loadGeminiModelsToUI()
+  const msg = document.getElementById('modelsMsg')
+  msg.textContent = '✅ אופס לברירת מחדל'
+  msg.style.color = 'var(--income)'
+}
+
+function _escHtml(s) {
+  return String(s == null ? '' : s).replace(/[<>&"']/g, c => ({ '<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;' }[c]))
+}
+
+async function runGeminiModelsTest() {
+  const key = getApiKey()
+  if (!key) { alert('שמור קודם מפתח API'); return }
+  const promptText = (document.getElementById('modelsTestPrompt').value || '').trim() || 'בדיקה'
+  const list = _parseModelsInput()
+  if (!list.length) { alert('הזן מודלים לבדיקה'); return }
+  const out = document.getElementById('modelsTestResult')
+  out.innerHTML = `<div style="color:var(--text-muted)">⏳ בודק ${list.length} מודלים...</div>`
+  const btn = document.getElementById('modelsTestBtn')
+  if (btn) btn.disabled = true
+  try {
+    const results = await testGeminiModels(key, promptText, list)
+    const okCount = results.filter(r => r.ok).length
+    out.innerHTML = `
+      <div style="font-size:.85rem;color:var(--text-muted);margin-bottom:.5rem">סיכום: ${okCount}/${results.length} עובדים</div>
+      ${results.map(r => {
+        if (r.ok) {
+          return `<div style="padding:.55rem .75rem;margin-bottom:.4rem;border-radius:6px;background:rgba(46,160,67,.12);border:1px solid rgba(46,160,67,.4)">
+            <div style="font-family:monospace;font-weight:600;color:var(--income)">✅ ${_escHtml(r.model)} <span style="font-weight:400;opacity:.7">· ${r.ms}ms</span></div>
+            <div style="font-size:.8rem;margin-top:.3rem;opacity:.85">${_escHtml(r.reply) || '<i>(תגובה ריקה)</i>'}</div>
+          </div>`
+        }
+        return `<div style="padding:.55rem .75rem;margin-bottom:.4rem;border-radius:6px;background:rgba(220,53,69,.1);border:1px solid rgba(220,53,69,.35)">
+          <div style="font-family:monospace;font-weight:600;color:var(--expense)">❌ ${_escHtml(r.model)} <span style="font-weight:400;opacity:.7">· ${r.ms}ms</span></div>
+          <div style="font-size:.8rem;margin-top:.3rem;opacity:.85">${_escHtml(r.error)}</div>
+        </div>`
+      }).join('')}`
+  } finally {
+    if (btn) btn.disabled = false
+  }
 }
