@@ -106,20 +106,91 @@ function sumCapitalIncome(txs) {
   return txs.reduce((s, t) => s + (isCapitalIncome(t) ? t.amount : 0), 0)
 }
 
+// ===== CC LUMP DETECTION (shared by analysis & budget) =====
+// A "CC lump" is a bank-side aggregate payment that pays off a CC account.
+// We drop it from expense breakdowns ONLY IF that CC account already has
+// itemized statement data in the same tx set — otherwise the lump is the
+// user's only visibility into the spend and must remain counted.
+//
+// Detection order (most specific → least):
+//   1. explicit `ccPaymentForAccountId` flag set by autoLinkTransfersByPattern.
+//   2. vendor/description matches a specific CC account's paymentVendorPatterns.
+//   3. vendor/description hits a generic CC keyword → returns `_CC_LUMP_ANY`
+//      (we know it's a CC payment but not which card).
+const _CC_LUMP_ANY = '__any_cc__'
+
+let _ccLumpDetectCache = null
+let _ccLumpDetectCacheTs = 0
+function _getCcLumpDetect() {
+  const now = Date.now()
+  if (_ccLumpDetectCache && now - _ccLumpDetectCacheTs < 500) return _ccLumpDetectCache
+  const ccAccs = getAccounts().filter(a => a.type === 'credit_card')
+  const ccAccPatterns = ccAccs.map(a => ({
+    id: a.id,
+    needles: (a.paymentVendorPatterns || [])
+      .map(p => String(p || '').toLowerCase().trim())
+      .filter(Boolean),
+  }))
+  const hasCc = ccAccs.length > 0
+  const keywords = (hasCc && typeof CC_KEYWORDS !== 'undefined') ? CC_KEYWORDS.map(k => k.toLowerCase()) : []
+  _ccLumpDetectCache = { hasCc, ccAccPatterns, keywords }
+  _ccLumpDetectCacheTs = now
+  return _ccLumpDetectCache
+}
+function invalidateCcLumpDetectCache() { _ccLumpDetectCache = null }
+
+function ccLumpTargetForTx(t) {
+  if (t.ccPaymentForAccountId) return t.ccPaymentForAccountId
+  if (t.amount >= 0) return null
+  if (t.type === 'transfer') return null
+  const det = _getCcLumpDetect()
+  if (!det.hasCc) return null
+  const info = _getAccountInfo(t.accountId)
+  if (info && info.type !== 'checking' && info.type !== 'cash') return null
+  const text = ((t.vendor || '') + ' ' + (t.description || '')).toLowerCase()
+  if (!text.trim()) return null
+  for (const acc of det.ccAccPatterns) {
+    if (acc.needles.some(n => text.includes(n))) return acc.id
+  }
+  if (det.keywords.some(k => text.includes(k))) return _CC_LUMP_ANY
+  return null
+}
+
+// Set of CC account ids that have at least one of their own (itemized)
+// transactions inside the given tx list.
+function ccAccountsWithDetail(txs) {
+  const out = new Set()
+  for (const t of txs) {
+    const info = _getAccountInfo(t.accountId)
+    if (info && info.type === 'credit_card') out.add(t.accountId)
+  }
+  return out
+}
+
+function shouldDropCcLump(t, ccAccsWithDetail) {
+  if (!ccAccsWithDetail) return false
+  const target = ccLumpTargetForTx(t)
+  if (!target) return false
+  if (target === _CC_LUMP_ANY) return ccAccsWithDetail.size > 0
+  return ccAccsWithDetail.has(target)
+}
+
 // ===== ANALYSIS EXPENSE SCOPE =====
 // For the analysis screen's expense breakdown/pie, we want the DETAILED picture:
 // show individual CC purchases with their categories instead of the lump-sum
 // bank payment. Rules:
 //   - skip transfers (internal money movement)
-//   - skip the aggregate bank payment line (has ccPaymentForAccountId) —
-//     its breakdown is the CC detail rows
+//   - skip CC lump payments whose target CC has itemized data in this tx set
+//     (the detail rows already contribute; counting both = double-count).
+//     If the target CC has no itemized data, KEEP the lump — it's the only
+//     record of the spend.
 //   - skip savings/investment account rows — prefer the bank-side transfer
 //     (which already carries the "savings" category)
 //   - include negative amounts on bank (checking/cash) AND on CC accounts,
 //     treating refunds as a negative expense
-function analysisExpenseAmount(t, savingsInvestIds) {
+function analysisExpenseAmount(t, savingsInvestIds, ccAccsWithDetail) {
   if (t.type === 'transfer') return 0
-  if (t.ccPaymentForAccountId) return 0
+  if (shouldDropCcLump(t, ccAccsWithDetail)) return 0
   if (savingsInvestIds && savingsInvestIds.has(t.accountId)) return 0
   if (t.type === 'refund' && t.amount > 0) return -t.amount
   if (t.amount < 0) return Math.abs(t.amount)

@@ -99,85 +99,26 @@ function migrateExcludeFromUnforeseen_v1() {
   localStorage.setItem('migration_exclude_from_budget_v1', '1')
 }
 
-// CC lump detection — figure out which credit_card account a bank-side
-// outflow is paying, so we can decide whether to drop it from the budget.
-// Order: explicit ccPaymentForAccountId flag → match against a specific CC
-// account's paymentVendorPatterns → global CC_KEYWORDS (only when at least
-// one CC account exists). The first two return the concrete account id; the
-// last returns the '__any_cc__' sentinel because we can't tell which card.
-const _ANY_CC = '__any_cc__'
-
-let _budgetCcLumpCache = null
-let _budgetCcLumpCacheTs = 0
-function _getBudgetCcLumpDetect() {
-  const now = Date.now()
-  if (_budgetCcLumpCache && now - _budgetCcLumpCacheTs < 500) return _budgetCcLumpCache
-  const ccAccs = getAccounts().filter(a => a.type === 'credit_card')
-  const ccAccPatterns = ccAccs.map(a => ({
-    id: a.id,
-    needles: (a.paymentVendorPatterns || [])
-      .map(p => String(p || '').toLowerCase().trim())
-      .filter(Boolean),
-  }))
-  const hasCc = ccAccs.length > 0
-  const keywords = (hasCc && typeof CC_KEYWORDS !== 'undefined') ? CC_KEYWORDS.map(k => k.toLowerCase()) : []
-  _budgetCcLumpCache = { hasCc, ccAccPatterns, keywords }
-  _budgetCcLumpCacheTs = now
-  return _budgetCcLumpCache
-}
-function invalidateBudgetCcLumpCache() { _budgetCcLumpCache = null }
-
-function _ccAccountForLump(t) {
-  if (t.ccPaymentForAccountId) return t.ccPaymentForAccountId
-  if (t.amount >= 0) return null
-  const det = _getBudgetCcLumpDetect()
-  if (!det.hasCc) return null
-  const info = typeof _getAccountInfo === 'function' ? _getAccountInfo(t.accountId) : null
-  if (info && info.type !== 'checking' && info.type !== 'cash') return null
-  const text = ((t.vendor || '') + ' ' + (t.description || '')).toLowerCase()
-  if (!text.trim()) return null
-  for (const acc of det.ccAccPatterns) {
-    if (acc.needles.some(n => text.includes(n))) return acc.id
-  }
-  if (det.keywords.some(k => text.includes(k))) return _ANY_CC
-  return null
-}
-
-// Set of CC account ids that have at least one of their own transactions in
-// the given month's tx list. A CC lump targeting one of these is dropped from
-// the budget (the detail already counts under per-category rows). A lump
-// targeting a CC account with NO detail tx in the month still counts — that
-// is the user's only visibility into the spend.
-function _ccAccountsWithDetail(monthTxs) {
-  const out = new Set()
-  for (const t of monthTxs) {
-    const info = typeof _getAccountInfo === 'function' ? _getAccountInfo(t.accountId) : null
-    if (info && info.type === 'credit_card') out.add(t.accountId)
-  }
-  return out
-}
+// CC lump detection moved to core.js (ccLumpTargetForTx / ccAccountsWithDetail
+// / shouldDropCcLump) — shared by analysis & budget. A lump that targets a CC
+// account with itemized data is treated as a duplicate of the per-purchase
+// rows; a lump targeting a CC with no statements stays counted (it's the only
+// record of the spend).
 
 // Per-month context for budget computations. Pre-compute once per call so
 // budgetExpenseAmount doesn't re-derive these for every tx.
 function _budgetMonthContext(monthTxs) {
   return {
     savingsInvestIds: analysisExpenseSavingsInvestIds(),
-    ccAccsWithDetail: _ccAccountsWithDetail(monthTxs),
+    ccAccsWithDetail: ccAccountsWithDetail(monthTxs),
   }
-}
-
-function _shouldDropCcLump(t, ctx) {
-  const target = _ccAccountForLump(t)
-  if (!target) return false
-  if (target === _ANY_CC) return ctx.ccAccsWithDetail.size > 0
-  return ctx.ccAccsWithDetail.has(target)
 }
 
 function budgetExpenseAmount(t, ctx) {
   if (t.excludeFromBudget) return 0
   if (t.type === 'transfer') return 0
   if (ctx.savingsInvestIds.has(t.accountId)) return 0
-  if (_shouldDropCcLump(t, ctx)) return 0
+  if (shouldDropCcLump(t, ctx.ccAccsWithDetail)) return 0
   if (t.type === 'refund' && t.amount > 0) return -t.amount
   if (t.amount < 0) return Math.abs(t.amount)
   return 0
@@ -288,7 +229,7 @@ function computeBudgetRowTxs(catId, monthKey, type, { includeExcluded = false } 
         // show excluded rows in the modal too.
         if (t.type === 'transfer') return 0
         if (ctx.savingsInvestIds.has(t.accountId)) return 0
-        if (_shouldDropCcLump(t, ctx)) return 0
+        if (shouldDropCcLump(t, ctx.ccAccsWithDetail)) return 0
         if (t.type === 'refund' && t.amount > 0) return -t.amount
         if (t.amount < 0) return Math.abs(t.amount)
         return 0

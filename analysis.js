@@ -102,9 +102,10 @@ function _drawAnalysis() {
 
 function _renderExpensePie(periodTx) {
   const savingsInvestIds = analysisExpenseSavingsInvestIds()
+  const ccAccsWithDetail = ccAccountsWithDetail(periodTx)
   const expByCat = {}
   periodTx.forEach(t => {
-    const ca = analysisExpenseAmount(t, savingsInvestIds)
+    const ca = analysisExpenseAmount(t, savingsInvestIds, ccAccsWithDetail)
     if (ca <= 0) return
     const cat = getCategoryById(t.categoryId)
     const key = cat?.id || '__none__'
@@ -174,10 +175,11 @@ function _expenseBreakdownRowHtml(r, totalForPct) {
 
 function _renderExpenseBreakdown(periodTx) {
   const savingsInvestIds = analysisExpenseSavingsInvestIds()
+  const ccAccsWithDetail = ccAccountsWithDetail(periodTx)
   const expByCat = {}
   let totalForPct = 0
   periodTx.forEach(t => {
-    const ca = analysisExpenseAmount(t, savingsInvestIds)
+    const ca = analysisExpenseAmount(t, savingsInvestIds, ccAccsWithDetail)
     if (ca <= 0) return
     const cat = getCategoryById(t.categoryId)
     const key = cat?.id || '__none__'
@@ -402,9 +404,10 @@ function toggleHiddenTopVendorsList() {
 
 function _renderTopVendors(periodTx) {
   const savingsInvestIds = analysisExpenseSavingsInvestIds()
+  const ccAccsWithDetail = ccAccountsWithDetail(periodTx)
   const byVendor = {}
   periodTx.forEach(t => {
-    const ca = analysisExpenseAmount(t, savingsInvestIds)
+    const ca = analysisExpenseAmount(t, savingsInvestIds, ccAccsWithDetail)
     if (ca <= 0) return
     const raw = (t.vendor || '—').trim()
     const display = resolveVendor(raw, t.amount, getTxAliasDay(t)) || raw || '—'
@@ -715,8 +718,10 @@ function _buildChatContext(question) {
 
   const cutoff = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 120)
   const cutoffIso = cutoff.toISOString().slice(0, 10)
-  const recent = all
-    .filter(t => t.date && t.date >= cutoffIso && t.type !== 'transfer')
+  const recentRaw = all.filter(t => t.date && t.date >= cutoffIso && t.type !== 'transfer')
+  const ccAccsWithDetailChat = ccAccountsWithDetail(recentRaw)
+  const recent = recentRaw
+    .filter(t => !shouldDropCcLump(t, ccAccsWithDetailChat))
     .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
     .slice(0, 400)
     .map(t => {
