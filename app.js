@@ -1,4 +1,4 @@
-const APP_VERSION = '1.21.27'
+const APP_VERSION = '1.21.28'
 
 // ===== STORAGE =====
 const DB = {
@@ -252,9 +252,9 @@ function importData(input) {
       invalidateSavingsCache()
       invalidateCapitalIncomeCache()
       invalidateVendorAliasCache()
-      alert('הנתונים יובאו בהצלחה!')
+      toast('הנתונים יובאו בהצלחה', { type: 'success' })
       renderSettings()
-    } catch { alert('שגיאה בקריאת הקובץ') }
+    } catch { toast('שגיאה בקריאת הקובץ', { type: 'error' }) }
   }
   reader.readAsText(file)
   input.value = ''
@@ -329,8 +329,14 @@ function _onEditTypeChange() {
 function closeEditModal() { document.getElementById('editModal').classList.remove('open'); _editId = null; _editIsNew = false }
 function saveEditModal() {
   if (!_editId) return
+  const vendorEl = document.getElementById('editVendor')
+  const amountEl = document.getElementById('editAmount')
+  const newAmount = parseFloat(amountEl.value)
+  let invalid = false
+  if (!vendorEl.value.trim()) { markInvalid(vendorEl, 'שדה חובה'); invalid = true }
+  if (isNaN(newAmount)) { markInvalid(amountEl, 'הזן סכום'); invalid = true }
+  if (invalid) { toast('יש להשלים את השדות המסומנים', { type: 'error' }); return }
   const txs = getTransactions()
-  const newAmount = parseFloat(document.getElementById('editAmount').value)
   const newType = document.getElementById('editType').value
   const destId = document.getElementById('editDestAccount').value
   const newRecurringFlag = document.getElementById('editRecurringFlag')?.value || ''
@@ -445,26 +451,16 @@ function applyCategoryToAllSimilar() {
 }
 
 function showPropagateToast(n) {
-  let el = document.getElementById('propagateToast')
-  if (!el) {
-    el = document.createElement('div')
-    el.id = 'propagateToast'
-    el.className = 'propagate-toast'
-    document.body.appendChild(el)
-  }
-  el.textContent = `סווגו ${n} עסקאות דומות אוטומטית`
-  el.classList.add('open')
-  clearTimeout(el._timer)
-  el._timer = setTimeout(() => el.classList.remove('open'), 3000)
+  toast(`סווגו ${n} עסקאות דומות אוטומטית`, { type: 'success' })
 }
 
 function addManualTransaction() {
   _editIsNew = true
   openEditModal(null)
 }
-function deleteFromModal() {
+async function deleteFromModal() {
   if (!_editId) return
-  if (!confirm('האם למחוק עסקה זו?')) return
+  if (!(await confirmDialog('האם למחוק עסקה זו?', { danger: true, confirmText: 'מחק' }))) return
   DB.set('finTransactions', getTransactions().filter(t => t.id !== _editId))
   closeEditModal()
   renderTransactions()

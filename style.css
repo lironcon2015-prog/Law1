@@ -550,6 +550,47 @@ select option { background-color: #141417; color: var(--text-primary); }
 .parse-summary-badge { padding: .15rem .6rem; background: var(--accent); color: white; border-radius: .4rem; font-size: .75rem; font-weight: 600; }
 .parse-summary-badge.parse-summary-ai { background: var(--warn, #f59e0b); }
 
+/* ===== Toast stack (ui.js) ===== */
+.toast-stack {
+  position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%);
+  z-index: 1500; display: flex; flex-direction: column; gap: .55rem;
+  align-items: center; pointer-events: none; width: max-content; max-width: 92vw;
+}
+.toast {
+  display: flex; align-items: center; gap: .85rem;
+  background: var(--bg-elevated); color: var(--text-primary);
+  border: 1px solid var(--border-bright);
+  box-shadow: inset 0 1px 1px rgba(255,255,255,.08), 0 10px 32px rgba(0,0,0,.55);
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  padding: .7rem 1.05rem; border-radius: var(--r-md, 12px);
+  font-size: .9rem; font-weight: 500; max-width: 92vw;
+  opacity: 0; transform: translateY(14px); transition: opacity .2s, transform .2s;
+  pointer-events: auto;
+}
+.toast.open { opacity: 1; transform: translateY(0); }
+.toast-msg { white-space: pre-line; }
+.toast-success { border-color: var(--income); }
+.toast-success .toast-msg::before { content: '✓ '; color: var(--income); font-weight: 700; }
+.toast-error { border-color: var(--expense); }
+.toast-error .toast-msg::before { content: '⚠ '; color: var(--expense); }
+.toast-action {
+  background: var(--accent-dim); color: var(--accent); border: none;
+  border-radius: 8px; padding: .35rem .75rem; font-family: inherit;
+  font-size: .82rem; font-weight: 600; cursor: pointer; flex-shrink: 0;
+  transition: background .15s;
+}
+.toast-action:hover { background: var(--accent); color: #fff; }
+
+/* ===== Button loading + inline validation (ui.js) ===== */
+.btn-loading { position: relative; pointer-events: none; opacity: .85; }
+.btn-spinner {
+  display: inline-block; width: 1em; height: 1em; vertical-align: -.15em;
+  border: 2px solid currentColor; border-top-color: transparent;
+  border-radius: 50%; animation: spin .7s linear infinite;
+}
+.input-invalid { border-color: var(--expense) !important; box-shadow: 0 0 0 3px var(--expense-bg) !important; }
+.field-error { color: var(--expense); font-size: .76rem; margin-top: .25rem; }
+
 /* ===== Auto-propagate category toast ===== */
 .propagate-toast {
   position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%) translateY(100px);

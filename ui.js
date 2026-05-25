@@ -1,0 +1,181 @@
+// ===== SHARED UI PRIMITIVES =====
+// Toasts, an async confirm dialog, button loading state, inline form validation,
+// and a single source of chart colours. Loaded early (after core.js) so every
+// other module can rely on these globals.
+
+// ===== TOASTS =====
+// Stacked, non-blocking notifications. Replaces ad-hoc alert()/custom divs.
+//   toast('נשמר', { type:'success' })
+//   toast('נמחק', { action:{ label:'בטל', onClick:()=>restore() } })
+function _toastStack() {
+  let c = document.getElementById('toastStack')
+  if (!c) {
+    c = document.createElement('div')
+    c.id = 'toastStack'
+    c.className = 'toast-stack'
+    document.body.appendChild(c)
+  }
+  return c
+}
+
+function toast(msg, opts = {}) {
+  const { type = 'info', duration = 3200, action = null } = opts
+  const el = document.createElement('div')
+  el.className = `toast toast-${type}`
+  el.setAttribute('role', 'status')
+
+  const span = document.createElement('span')
+  span.className = 'toast-msg'
+  span.textContent = msg
+  el.appendChild(span)
+
+  let timer
+  const dismiss = () => {
+    clearTimeout(timer)
+    el.classList.remove('open')
+    setTimeout(() => el.remove(), 220)
+  }
+
+  if (action && action.label) {
+    const btn = document.createElement('button')
+    btn.className = 'toast-action'
+    btn.textContent = action.label
+    btn.onclick = () => {
+      try { if (typeof action.onClick === 'function') action.onClick() }
+      finally { dismiss() }
+    }
+    el.appendChild(btn)
+  }
+
+  _toastStack().appendChild(el)
+  requestAnimationFrame(() => el.classList.add('open'))
+  // Actions get a longer window so the user can react (e.g. Undo).
+  if (duration > 0) timer = setTimeout(dismiss, duration + (action ? 2800 : 0))
+  return { dismiss }
+}
+
+// ===== CONFIRM DIALOG =====
+// Promise-based replacement for blocking confirm(). Resolves true/false.
+// ESC / backdrop / cancel → false; Enter / confirm → true. Message is set via
+// textContent (safe for interpolated data).
+function confirmDialog(message, opts = {}) {
+  const {
+    danger = false,
+    confirmText = 'אישור',
+    cancelText = 'ביטול',
+    title = '',
+  } = opts
+  return new Promise(resolve => {
+    const overlay = document.createElement('div')
+    overlay.className = 'modal-overlay open'
+    overlay.style.zIndex = '1200'
+
+    const box = document.createElement('div')
+    box.className = 'modal-box'
+    box.style.width = 'min(420px,95vw)'
+    box.setAttribute('role', 'alertdialog')
+    box.setAttribute('aria-modal', 'true')
+
+    if (title) {
+      const h = document.createElement('div')
+      h.className = 'modal-header'
+      h.innerHTML = '<h3></h3>'
+      h.querySelector('h3').textContent = title
+      box.appendChild(h)
+    }
+
+    const body = document.createElement('div')
+    body.style.cssText = 'font-size:.92rem;line-height:1.6;margin-bottom:1.25rem;white-space:pre-line'
+    body.textContent = message
+    box.appendChild(body)
+
+    const actions = document.createElement('div')
+    actions.style.cssText = 'display:flex;gap:.6rem;justify-content:flex-end'
+    const cancelBtn = document.createElement('button')
+    cancelBtn.className = 'btn-ghost'
+    cancelBtn.textContent = cancelText
+    const okBtn = document.createElement('button')
+    okBtn.className = danger ? 'btn-danger' : 'btn-primary'
+    okBtn.textContent = confirmText
+    actions.appendChild(cancelBtn)
+    actions.appendChild(okBtn)
+    box.appendChild(actions)
+    overlay.appendChild(box)
+
+    const close = val => {
+      document.removeEventListener('keydown', onKey)
+      overlay.remove()
+      resolve(val)
+    }
+    const onKey = e => {
+      if (e.key === 'Escape') close(false)
+      else if (e.key === 'Enter') close(true)
+    }
+    overlay.addEventListener('click', e => { if (e.target === overlay) close(false) })
+    cancelBtn.onclick = () => close(false)
+    okBtn.onclick = () => close(true)
+    document.addEventListener('keydown', onKey)
+
+    document.body.appendChild(overlay)
+    okBtn.focus()
+  })
+}
+
+// ===== BUTTON LOADING =====
+// Disables a button and swaps its label for a spinner while `fn` runs.
+async function withButtonLoading(btn, fn) {
+  if (!btn) return fn()
+  const orig = btn.innerHTML
+  const w = btn.offsetWidth
+  btn.disabled = true
+  btn.classList.add('btn-loading')
+  if (w) btn.style.minWidth = w + 'px'
+  btn.innerHTML = '<span class="btn-spinner" aria-hidden="true"></span>'
+  try {
+    return await fn()
+  } finally {
+    btn.disabled = false
+    btn.classList.remove('btn-loading')
+    btn.style.minWidth = ''
+    btn.innerHTML = orig
+  }
+}
+
+// ===== INLINE VALIDATION =====
+function markInvalid(input, msg) {
+  if (!input) return
+  input.classList.add('input-invalid')
+  let hint = input.parentElement && input.parentElement.querySelector(':scope > .field-error')
+  if (!hint) {
+    hint = document.createElement('div')
+    hint.className = 'field-error'
+    input.insertAdjacentElement('afterend', hint)
+  }
+  hint.textContent = msg || ''
+  input.addEventListener('input', () => clearInvalid(input), { once: true })
+  input.addEventListener('change', () => clearInvalid(input), { once: true })
+}
+function clearInvalid(input) {
+  if (!input) return
+  input.classList.remove('input-invalid')
+  const hint = input.parentElement && input.parentElement.querySelector(':scope > .field-error')
+  if (hint) hint.remove()
+}
+
+// ===== CHART COLOURS =====
+// Single source of truth mirroring the CSS tokens, so chart styling stops
+// scattering hardcoded hex across dashboard.js / analysis.js.
+const CHART_COLORS = {
+  income:    '#10b981',
+  incomeBg:  'rgba(16,185,129,.5)',
+  expense:   '#f43f5e',
+  expenseBg: 'rgba(244,63,94,.5)',
+  accent:    '#3b82f6',
+  accentBg:  'rgba(59,130,246,.65)',
+  muted:     '#64748b',
+  mutedBg:   'rgba(100,116,139,.4)',
+  grid:      'rgba(255,255,255,0.06)',
+  ticks:     '#94a3b8',
+  surface:   '#09090b',
+  font:      'Heebo',
+}

@@ -92,13 +92,13 @@ function runAutoCategorize() {
   const applied = applyAutoCategorizeConfident(_autocatPlan)
 
   if (autoApplied.length === 0 && ambiguous.length === 0) {
-    alert('אין עסקאות חדשות לסיווג אוטומטי. ודא שיש עסקאות ללא קטגוריה עם ספק שכבר סווג בעבר.')
+    toast('אין עסקאות חדשות לסיווג אוטומטי. ודא שיש עסקאות ללא קטגוריה עם ספק שכבר סווג בעבר.', { type: 'info', duration: 5000 })
     if (typeof renderTransactions === 'function') renderTransactions()
     return
   }
 
   if (ambiguous.length === 0) {
-    alert(`סווגו אוטומטית ${applied} עסקאות.`)
+    toast(`סווגו אוטומטית ${applied} עסקאות`, { type: 'success' })
     if (typeof renderTransactions === 'function') renderTransactions()
     return
   }
@@ -157,7 +157,7 @@ function applyAutocatChoices() {
     applied += applyCategoryToTxIds(entry.txIds, catId)
   })
   closeAutocatModal()
-  alert(applied === 0 ? 'לא בוצעו סיווגים נוספים.' : `סווגו ${applied} עסקאות נוספות.`)
+  toast(applied === 0 ? 'לא בוצעו סיווגים נוספים' : `סווגו ${applied} עסקאות נוספות`, { type: applied === 0 ? 'info' : 'success' })
   if (typeof renderTransactions === 'function') renderTransactions()
 }
 
@@ -173,11 +173,11 @@ function closeAutocatModal() {
 // rely on deterministic rules + manual tagging.
 async function runGeminiCategorize() {
   const apiKey = getApiKey()
-  if (!apiKey) { alert('חסר מפתח Gemini בהגדרות'); return }
+  if (!apiKey) { toast('חסר מפתח Gemini בהגדרות', { type: 'error' }); return }
 
   const txs = getTransactions()
   const targets = txs.filter(t => !t.categoryId && t.vendor && t.type !== 'transfer')
-  if (targets.length === 0) { alert('אין עסקאות לא־מסווגות'); return }
+  if (targets.length === 0) { toast('אין עסקאות לא־מסווגות', { type: 'info' }); return }
 
   // Unique vendors (normalized dedupe, but send original form to Gemini)
   const seen = new Set()
@@ -190,7 +190,7 @@ async function runGeminiCategorize() {
   }
 
   if (uniqueVendors.length > 200) {
-    if (!confirm(`${uniqueVendors.length} ספקים שונים. ההרצה עלולה לארוך. להמשיך?`)) return
+    if (!(await confirmDialog(`${uniqueVendors.length} ספקים שונים. ההרצה עלולה לארוך. להמשיך?`, { confirmText: 'המשך' }))) return
   }
 
   const cats = getCategories()
@@ -248,13 +248,14 @@ ${uniqueVendors.map(v => `- ${v}`).join('\n')}`
       if (k && lookup[k]) { t.categoryId = lookup[k]; applied++ }
     })
     DB.set('finTransactions', all)
-    alert(applied === 0
+    toast(applied === 0
       ? 'ה-AI לא הצליח לסווג אף ספק. נסה להוסיף כללים ידניים.'
-      : `ה-AI סיווג ${applied} עסקאות (${Object.keys(lookup).length} ספקים).`)
+      : `ה-AI סיווג ${applied} עסקאות (${Object.keys(lookup).length} ספקים)`,
+      { type: applied === 0 ? 'info' : 'success', duration: 5000 })
     if (typeof renderTransactions === 'function') renderTransactions()
   } catch (err) {
     console.error('Gemini categorize error:', err)
-    alert('שגיאה בסיווג עם AI: ' + err.message)
+    toast('שגיאה בסיווג עם AI: ' + err.message, { type: 'error', duration: 6000 })
   } finally {
     btns.forEach(b => { b.disabled = false; b.textContent = '🤖 סווג לא־מסווגים עם AI' })
   }
