@@ -20,6 +20,7 @@ const ASSETS = [
   './drive.js',
   './autocat.js',
   './property.js',
+  './reports.js',
   './scrollMirror.js',
   './manifest.json',
   './icons/icon-192.png',

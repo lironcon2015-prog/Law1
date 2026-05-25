@@ -240,6 +240,11 @@ function exportData() {
     recurringGroups:     DB.get('finManualRecurringGroups', []),
     recurringHidden:     DB.get('finRecurringHidden', []),
     recurringIgnoreOut:  DB.get('finRecurringIgnoreOutliers', []),
+    recurringAmountOverride: DB.get('finRecurringAmountOverride', {}),
+    hiddenTopVendors:    DB.get('finHiddenTopVendors', []),
+    property:            DB.get('finProperty', null),
+    propertyPayments:    DB.get('finPropertyPayments', []),
+    propertyManualMortgage: DB.get('finPropertyManualMortgage', []),
     exportedAt:          new Date().toISOString(),
   }
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
@@ -265,6 +270,11 @@ function importData(input) {
       if (data.recurringGroups)    DB.set('finManualRecurringGroups',   data.recurringGroups)
       if (data.recurringHidden)    DB.set('finRecurringHidden',         data.recurringHidden)
       if (data.recurringIgnoreOut) DB.set('finRecurringIgnoreOutliers', data.recurringIgnoreOut)
+      if (data.recurringAmountOverride) DB.set('finRecurringAmountOverride', data.recurringAmountOverride)
+      if (data.hiddenTopVendors)   DB.set('finHiddenTopVendors',        data.hiddenTopVendors)
+      if (data.property)           DB.set('finProperty',                data.property)
+      if (data.propertyPayments)   DB.set('finPropertyPayments',        data.propertyPayments)
+      if (data.propertyManualMortgage) DB.set('finPropertyManualMortgage', data.propertyManualMortgage)
       invalidatePLCache()
       invalidateSavingsCache()
       invalidateCapitalIncomeCache()
