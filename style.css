@@ -83,6 +83,13 @@ a { color: inherit; text-decoration: none; cursor: pointer; }
 .recurring-row, .vendor-row { transition: background .15s; }
 .recurring-row:hover, .vendor-row:hover { background: var(--bg-hover); }
 
+/* ===== Empty / first-run state ===== */
+.empty-state { display: flex; flex-direction: column; align-items: center; text-align: center; gap: .6rem; padding: 2.5rem 1.25rem; }
+.empty-state-icon { font-size: 2.4rem; line-height: 1; opacity: .9; }
+.empty-state-title { font-size: 1.05rem; font-weight: 700; }
+.empty-state-text { font-size: .87rem; color: var(--text-muted); max-width: 32rem; line-height: 1.6; }
+.empty-state-actions { display: flex; gap: .6rem; flex-wrap: wrap; justify-content: center; margin-top: .5rem; }
+
 /* ===== NAVBAR (mobile) ===== */
 .navbar {
   display: none;

@@ -243,7 +243,15 @@ function _renderRecentTx(all) {
   const recent = [...all].sort((a,b) => (b.date||'').localeCompare(a.date||'')).slice(0, 10)
   const TYPE_LABEL = { income:'הכנסה', expense:'הוצאה', transfer:'העברה', refund:'החזר' }
   document.getElementById('recentTx').innerHTML = recent.length === 0
-    ? '<p style="color:var(--text-muted);font-size:.85rem;text-align:center;padding:2rem">אין עסקאות. התחל בייבוא קובץ.</p>'
+    ? emptyStateHTML({
+        icon: '📊',
+        title: 'נתחיל לעקוב אחר הכסף',
+        text: 'ייבא דוח בנק/אשראי לסיווג אוטומטי עם AI, או הוסף עסקה ראשונה ידנית.',
+        actions: [
+          { label: 'ייבוא קובץ', onclick: "navigate('import')", primary: true },
+          { label: 'הוסף עסקה', onclick: 'addManualTransaction()' },
+        ],
+      })
     : recent.map(tx => {
         const cat = getCategoryById(tx.categoryId)
         const isNonCounted = tx.type === 'transfer' || tx.type === 'refund'

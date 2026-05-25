@@ -162,6 +162,22 @@ function clearInvalid(input) {
   if (hint) hint.remove()
 }
 
+// ===== EMPTY STATE =====
+// Guided empty/first-run placeholder with optional CTA buttons.
+//   emptyStateHTML({ icon:'📥', title:'אין עסקאות', text:'...', actions:[
+//     { label:'ייבוא קובץ', onclick:"navigate('import')", primary:true } ]})
+function emptyStateHTML({ icon = '', title = '', text = '', actions = [] } = {}) {
+  const btns = actions.map(a =>
+    `<button class="${a.primary ? 'btn-primary' : 'btn-ghost'}" onclick="${a.onclick}">${a.label}</button>`
+  ).join('')
+  return `<div class="empty-state">
+    ${icon ? `<div class="empty-state-icon">${icon}</div>` : ''}
+    ${title ? `<div class="empty-state-title">${title}</div>` : ''}
+    ${text ? `<div class="empty-state-text">${text}</div>` : ''}
+    ${btns ? `<div class="empty-state-actions">${btns}</div>` : ''}
+  </div>`
+}
+
 // ===== CHART COLOURS =====
 // Single source of truth mirroring the CSS tokens, so chart styling stops
 // scattering hardcoded hex across dashboard.js / analysis.js.

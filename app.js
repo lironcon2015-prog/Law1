@@ -478,9 +478,23 @@ function addManualTransaction() {
 async function deleteFromModal() {
   if (!_editId) return
   if (!(await confirmDialog('האם למחוק עסקה זו?', { danger: true, confirmText: 'מחק' }))) return
-  DB.set('finTransactions', getTransactions().filter(t => t.id !== _editId))
+  const deletedId = _editId
+  const snapshot = getTransactions().find(t => t.id === deletedId)
+  DB.set('finTransactions', getTransactions().filter(t => t.id !== deletedId))
   closeEditModal()
   renderTransactions()
+  toast('העסקה נמחקה', {
+    type: 'success',
+    action: snapshot ? {
+      label: 'בטל',
+      onClick: () => {
+        const cur = getTransactions()
+        if (!cur.some(t => t.id === deletedId)) { cur.push(snapshot); DB.set('finTransactions', cur) }
+        renderTransactions()
+        if (typeof renderDashboard === 'function') renderDashboard()
+      },
+    } : null,
+  })
 }
 
 // ===== MIGRATIONS =====

@@ -216,7 +216,15 @@ function _drawTxTable() {
         <th>הערות</th><th></th>
       </tr></thead>
       <tbody>
-      ${page.length === 0 ? `<tr><td colspan="${colspan}" style="text-align:center;padding:3rem;color:var(--text-muted)">אין עסקאות</td></tr>` :
+      ${page.length === 0 ? `<tr><td colspan="${colspan}">${emptyStateHTML({
+          icon: '🧾',
+          title: 'אין עסקאות להצגה',
+          text: 'ייבא דוח או הוסף עסקה ידנית. אם הגדרת סינון — נסה לנקות אותו.',
+          actions: [
+            { label: 'הוסף עסקה', onclick: 'addManualTransaction()', primary: true },
+            { label: 'ייבוא קובץ', onclick: "navigate('import')" },
+          ],
+        })}</td></tr>` :
         page.map(tx => {
           const cat = getCategoryById(tx.categoryId)
           const isMirror = _txIsMirrorFor(tx, accountId)
