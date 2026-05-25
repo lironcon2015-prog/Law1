@@ -112,7 +112,7 @@ function _showAutocatAmbiguousModal(appliedCount, ambiguous) {
     const list = cats.filter(c => c.type === type)
     if (!list.length) return ''
     const label = type === 'expense' ? 'הוצאה' : 'הכנסה'
-    return `<optgroup label="${label}">${list.map(c => `<option value="${c.id}">${c.icon || ''} ${c.name}</option>`).join('')}</optgroup>`
+    return `<optgroup label="${label}">${list.map(c => `<option value="${c.id}">${catIconText(c)} ${c.name}</option>`).join('')}</optgroup>`
   }).join('')
 
   const summary = appliedCount > 0
@@ -122,7 +122,7 @@ function _showAutocatAmbiguousModal(appliedCount, ambiguous) {
   const rows = ambiguous.map((a, i) => {
     const candLabel = a.candidates.map(([cid, cnt]) => {
       const c = cats.find(x => x.id === cid)
-      return `${c?.icon || ''} ${c?.name || 'לא ידוע'} (${cnt})`
+      return `${catIconHTML(c)} ${c?.name || 'לא ידוע'} (${cnt})`
     }).join(' · ')
     return `
       <div class="autocat-row" data-idx="${i}">

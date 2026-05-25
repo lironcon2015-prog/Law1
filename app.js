@@ -1,4 +1,4 @@
-const APP_VERSION = '1.21.26'
+const APP_VERSION = '1.21.27'
 
 // ===== STORAGE =====
 const DB = {
@@ -277,7 +277,7 @@ function openEditModal(id) {
   _editId = tx.id
   const cats = getCategories()
   const accs = getAccounts()
-  const catOptions = cats.map(c => `<option value="${c.id}" ${tx.categoryId === c.id ? 'selected' : ''}>${c.icon} ${c.name}</option>`).join('')
+  const catOptions = cats.map(c => `<option value="${c.id}" ${tx.categoryId === c.id ? 'selected' : ''}>${catIconText(c)} ${c.name}</option>`).join('')
   const accOptions = accs.map(a => `<option value="${a.id}" ${tx.accountId === a.id ? 'selected' : ''}>${a.name}</option>`).join('')
   const typeOptions = ['income','expense','transfer','refund'].map(tp => {
     const lbl = { income:'הכנסה', expense:'הוצאה', transfer:'העברה', refund:'החזר' }[tp]
@@ -430,7 +430,7 @@ function applyCategoryToAllSimilar() {
   if (matches.length === 0) { alert('לא נמצאו עסקאות דומות'); return }
 
   const cat = getCategoryById(catId)
-  const catLabel = cat ? `${cat.icon || ''} ${cat.name}` : catId
+  const catLabel = cat ? `${catIconText(cat)} ${cat.name}` : catId
   if (!confirm(`להחיל את הקטגוריה "${catLabel}" על ${matches.length} עסקאות עם אותו ספק (כולל עסקאות שכבר מסווגות)?`)) return
 
   let changed = 0
@@ -648,6 +648,7 @@ document.addEventListener('DOMContentLoaded', () => {
   migrateBudgetMonthly_v2()
   if (typeof migrateExcludeFromUnforeseen_v1 === 'function') migrateExcludeFromUnforeseen_v1()
   if (typeof migrateManualGroupVendorKeys_v1 === 'function') migrateManualGroupVendorKeys_v1()
+  if (typeof migrateCategoryIconsToSvg_v1 === 'function') migrateCategoryIconsToSvg_v1()
   navigate('dashboard')
 
   const dz = document.getElementById('dropZone')

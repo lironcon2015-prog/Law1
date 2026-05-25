@@ -161,7 +161,7 @@ function updatePropCost(idx, field, value) {
 
 function _propSetupCard(p, cats) {
   const catOpts = ['<option value="">— בחר קטגוריה —</option>']
-    .concat(cats.map(c => `<option value="${c.id}" ${p.mortgageCategoryId===c.id?'selected':''}>${c.icon||''} ${c.name}</option>`))
+    .concat(cats.map(c => `<option value="${c.id}" ${p.mortgageCategoryId===c.id?'selected':''}>${catIconText(c)} ${c.name}</option>`))
     .join('')
     
   const costsHtml = (p.additionalCosts || []).map((c, i) => `
@@ -371,7 +371,7 @@ function _propMortgageCard(t, mort, mortgageRemaining, monthsLeft, p) {
     ? `<div class="prop-summary-sub">~${Math.round(monthsLeft)} חודשים בקצב הנוכחי</div>`
     : ''
   const subline = cat
-    ? `מבוסס על קטגוריה: <b>${cat.icon||''} ${cat.name}</b> + רישומים ידניים. לא כולל את תשלומי הרכישה למעלה.`
+    ? `מבוסס על קטגוריה: <b>${catIconHTML(cat)} ${cat.name}</b> + רישומים ידניים. לא כולל את תשלומי הרכישה למעלה.`
     : 'בחר קטגוריה למעלה כדי לשלב גם החזרים אוטומטיים ממסך ההוצאות. ניתן להזין רישומים ידניים בכל מקרה.'
   return `
     <div class="card">

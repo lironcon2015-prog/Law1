@@ -375,7 +375,7 @@ function showImportReview() {
       <td>${formatDate(t.date)}${billingWarn}</td>
       <td style="font-weight:500">${t.vendor}${ccNote}</td>
       <td style="font-weight:700;color:${t.amount>0?'var(--income)':'var(--expense)'}">${t.amount>0?'+':''}${formatCurrency(t.amount)}</td>
-      <td>${cat ? `<span style="font-size:.8rem">${cat.icon} ${cat.name}</span>` : '<span style="color:var(--text-muted);font-size:.8rem">—</span>'}</td>
+      <td>${cat ? `<span style="font-size:.8rem">${catIconHTML(cat)} ${cat.name}</span>` : '<span style="color:var(--text-muted);font-size:.8rem">—</span>'}</td>
       <td><span class="${badgeCls?`type-badge ${badgeCls}`:''}">${badge}</span></td>
     </tr>`}).join('')
 

@@ -274,7 +274,7 @@ function _renderBudgetGenModal() {
     return `
       <tr>
         <td><input type="checkbox" onchange="_toggleBudgetProposal(${idx})" ${p.include?'checked':''}></td>
-        <td><span class="budget-cat-name">${p.category.icon||''} ${p.category.name}</span>${notesHTML}${aiLine}</td>
+        <td><span class="budget-cat-name">${catIconHTML(p.category)} ${p.category.name}</span>${notesHTML}${aiLine}</td>
         <td class="bgen-months">${monthsCols}</td>
         <td class="bgen-stats">
           <div>חציון: ${formatCurrency(p.median)}</div>

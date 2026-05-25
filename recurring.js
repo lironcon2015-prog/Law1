@@ -949,7 +949,7 @@ function _renderDrillModal() {
           <tr style="${rowMuted}">
             <td>${formatDate(t.date)}${periodBadge}</td>
             <td style="font-weight:500">${resolveVendor(t.vendor, t.amount, getTxAliasDay(t)) || '—'}</td>
-            <td>${cat ? `<span class="cat-badge" style="background:${cat.color}22;color:${cat.color}">${cat.icon||''} ${cat.name}</span>` : '<span style="color:var(--text-muted)">—</span>'}</td>
+            <td>${cat ? `<span class="cat-badge" style="background:${cat.color}22;color:${cat.color}">${catIconHTML(cat)} ${cat.name}</span>` : '<span style="color:var(--text-muted)">—</span>'}</td>
             <td class="${t.amount>0?'amount-inc':'amount-exp'}" style="font-weight:600">${t.amount>0?'+':''}${formatCurrency(t.amount)}</td>
             <td style="min-width:9.5rem">
               <input type="month" value="${overrideYm}" onchange="setRecurringTxPeriodOverride('${t.id}', this.value)" style="font-size:.85rem;padding:.3rem .4rem;width:9rem">

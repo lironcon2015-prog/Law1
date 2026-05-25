@@ -1227,3 +1227,21 @@ select option { background-color: #141417; color: var(--text-primary); }
 @media not all and (hover: hover) {
   .scroll-x-mirror { display: none !important; }
 }
+
+/* ===== CATEGORY ICONS (SVG) ===== */
+.cat-ic { display: inline-flex; align-items: center; justify-content: center; vertical-align: -0.16em; }
+.cat-ic svg { display: block; }
+.cat-emoji { display: inline-flex; align-items: center; }
+
+/* ===== ICON PICKER ===== */
+.icon-picker { border: 1px solid var(--border); border-radius: 10px; padding: .6rem .7rem; background: var(--bg-surface); }
+.icon-picker-head { display: flex; align-items: center; gap: .6rem; margin-bottom: .6rem; }
+.icon-picker-preview { width: 40px; height: 40px; flex-shrink: 0; border-radius: 10px; background: var(--bg-elev); display: inline-flex; align-items: center; justify-content: center; }
+.icon-picker-search { flex: 1; min-width: 0; }
+.icon-picker-grid { max-height: 240px; overflow-y: auto; display: flex; flex-direction: column; gap: .65rem; }
+.icon-pick-group-label { font-size: .72rem; color: var(--text-muted); margin-bottom: .3rem; font-weight: 600; }
+.icon-pick-row { display: flex; flex-wrap: wrap; gap: .4rem; }
+.icon-pick-btn { width: 38px; height: 38px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: 9px; background: var(--bg-elev); color: var(--text-muted); cursor: pointer; transition: border-color .15s, color .15s, transform .12s, background .15s; padding: 0; }
+.icon-pick-btn:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-1px); }
+.icon-pick-btn.selected { border-color: var(--accent); color: var(--accent); background: var(--accent-bg, rgba(59,130,246,.12)); box-shadow: 0 0 0 1px var(--accent) inset; }
+.icon-pick-btn svg { display: block; }

@@ -44,7 +44,7 @@ function _buildTxCategoryFilter() {
   const cats = getCategories()
   const expCats = cats.filter(c => c.type === 'expense')
   const incCats = cats.filter(c => c.type === 'income')
-  const opt = c => `<option value="${c.id}" ${c.id===cur?'selected':''}>${c.icon||''} ${c.name}</option>`
+  const opt = c => `<option value="${c.id}" ${c.id===cur?'selected':''}>${catIconText(c)} ${c.name}</option>`
   sel.innerHTML = `
     <option value="">כל הקטגוריות</option>
     <option value="__none__" ${cur==='__none__'?'selected':''}>— ללא קטגוריה —</option>
@@ -145,7 +145,7 @@ function _drawTxTable() {
   if (categoryId && categoryId !== '__none__') {
     const cat = getCategoryById(categoryId)
     const catBal = net
-    const label = cat ? `${cat.icon||''} ${cat.name}` : 'קטגוריה'
+    const label = cat ? `${catIconHTML(cat)} ${cat.name}` : 'קטגוריה'
     categoryBalanceInfo = `<span style="color:${catBal>=0?'var(--income)':'var(--expense)'};font-weight:600">יתרת ${label}: ${formatCurrency(catBal)}</span>`
   }
 
@@ -248,9 +248,9 @@ function _drawTxTable() {
             ? `<td onclick="event.stopPropagation()"><input type="checkbox" ${_txSelected.has(tx.id)?'checked':''} onclick="toggleTxSelected('${tx.id}')"></td>`
             : ''
           const avatarBg = cat ? cat.color + '22' : 'rgba(100,116,139,.15)'
-          const avatarIcon = cat ? (cat.icon || '📋') : '📋'
+          const avatarIcon = cat ? (catIconHTML(cat, 18) || '📋') : '📋'
           const catLabel = cat
-            ? `<span class="tx-vendor-cat cat-badge-clickable" onclick="filterTxByCategory('${cat.id}')" title="סנן לפי קטגוריה זו" style="color:${cat.color}">${cat.icon} ${cat.name}</span>`
+            ? `<span class="tx-vendor-cat cat-badge-clickable" onclick="filterTxByCategory('${cat.id}')" title="סנן לפי קטגוריה זו" style="color:${cat.color}">${catIconHTML(cat)} ${cat.name}</span>`
             : `<span class="tx-vendor-cat cat-badge-clickable" onclick="filterTxByCategory('__none__')" title="סנן לפי לא־מסווג" style="color:var(--text-muted)">— לא מסווג</span>`
           const vendorName = resolveVendor(tx.vendor, tx.amount, getTxAliasDay(tx)) || '—'
           const descLine = tx.description && tx.description !== tx.vendor

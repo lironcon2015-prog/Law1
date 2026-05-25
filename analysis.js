@@ -593,7 +593,7 @@ function _renderVendorDrill() {
             <td>${formatDate(t.date)}</td>
             <td style="font-weight:500">${t.vendor || '—'}</td>
             <td style="font-size:.78rem;color:var(--text-muted)">${acc?.name || '—'}</td>
-            <td>${cat ? `<span class="cat-badge" style="background:${cat.color}22;color:${cat.color}">${cat.icon||''} ${cat.name}</span>` : '<span style="color:var(--text-muted)">—</span>'}</td>
+            <td>${cat ? `<span class="cat-badge" style="background:${cat.color}22;color:${cat.color}">${catIconHTML(cat)} ${cat.name}</span>` : '<span style="color:var(--text-muted)">—</span>'}</td>
             <td class="${t.amount>0?'amount-inc':'amount-exp'}" style="font-weight:600">${t.amount>0?'+':''}${formatCurrency(t.amount)}</td>
           </tr>`
       }).join('')

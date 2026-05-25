@@ -252,7 +252,7 @@ function _renderRecentTx(all) {
         return `
         <div class="recent-tx-item">
           <div class="recent-tx-left">
-            <div class="recent-tx-icon">${cat?.icon || '📋'}</div>
+            <div class="recent-tx-icon">${cat ? (catIconHTML(cat, 18) || '📋') : '📋'}</div>
             <div>
               <div class="recent-tx-name">${resolveVendor(tx.vendor, tx.amount, getTxAliasDay(tx)) || tx.description || '—'}${badge}</div>
               <div class="recent-tx-meta">${formatDate(tx.date)} · ${cat?.name || 'לא מסווג'}</div>

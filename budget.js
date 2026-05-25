@@ -446,7 +446,7 @@ function _renderBudgetScreenTable(monthKey, readOnly) {
     return `
       <div class="budget-screen-row ${residualRowCls} ${cls}">
         <span class="budget-screen-cat budget-screen-cat-link" role="link" tabindex="0"
-              onclick="${onClick}" title="${linkTitle}">${c.icon||'📋'} ${c.name}${tag}</span>
+              onclick="${onClick}" title="${linkTitle}">${catIconHTML(c) || '📋'} ${c.name}${tag}</span>
         <span class="budget-screen-actual-wrap" onclick="${onClick}" style="cursor:pointer">${actualCell}</span>
         ${input}
         <div class="budget-screen-bar-track"><div class="budget-screen-bar-fill" style="width:${pct}%"></div></div>
@@ -586,7 +586,7 @@ function _renderBudgetRowModal() {
   if (!body || !state) return
   const { catId, monthKey, type } = state
   const cat = _budgetCategoryProxy(catId)
-  const catLabel = cat ? `${cat.icon || '📋'} ${cat.name}` : 'קטגוריה'
+  const catLabel = cat ? `${catIconText(cat) || '📋'} ${cat.name}` : 'קטגוריה'
   if (title) title.textContent = `${catLabel} – ${_budgetFormatMonth(monthKey)}`
 
   const rows = computeBudgetRowTxs(catId, monthKey, type, { includeExcluded: true })
@@ -611,7 +611,7 @@ function _renderBudgetRowModal() {
 
   const lines = rows.map(({ tx, amount }) => {
     const c = tx.categoryId ? getCategoryById(tx.categoryId) : null
-    const catLbl = c ? `${c.icon || '📋'} ${c.name}` : '<span style="color:var(--text-muted)">ללא קטגוריה</span>'
+    const catLbl = c ? `${catIconHTML(c) || '📋'} ${c.name}` : '<span style="color:var(--text-muted)">ללא קטגוריה</span>'
     const vendor = (typeof resolveVendor === 'function')
       ? (resolveVendor(tx.vendor, tx.amount, typeof getTxAliasDay === 'function' ? getTxAliasDay(tx) : null) || tx.vendor || '')
       : (tx.vendor || '')

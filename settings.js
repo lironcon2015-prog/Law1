@@ -108,7 +108,7 @@ function renderRulesList() {
   const catSel = document.getElementById('ruleInputCategory')
   if (catSel) {
     const cats = getCategories().filter(c => c.type !== 'transfer')
-    catSel.innerHTML = cats.map(c => `<option value="${c.id}">${c.icon||''} ${c.name}</option>`).join('')
+    catSel.innerHTML = cats.map(c => `<option value="${c.id}">${catIconText(c)} ${c.name}</option>`).join('')
   }
   const listEl = document.getElementById('rulesList')
   if (listEl) {
@@ -128,7 +128,7 @@ function renderRulesList() {
           return `
             <div class="rules-row">
               <div class="rules-pattern">${r.pattern}</div>
-              <div class="rules-cat">${c ? `${c.icon||''} ${c.name}` : '(קטגוריה לא קיימת)'}</div>
+              <div class="rules-cat">${c ? `${catIconHTML(c)} ${c.name}` : '(קטגוריה לא קיימת)'}</div>
               <div><button class="btn-danger" onclick="removeRule('${r.id}')">מחק</button></div>
             </div>`
         }).join('')}
@@ -142,7 +142,7 @@ function renderRulesList() {
       const c = cats.find(x => x.id === r.categoryId)
       return `<div class="rules-default-row">
         <span class="rules-pattern">${r.patterns.join(' · ')}</span>
-        <span class="rules-cat">→ ${c ? `${c.icon||''} ${c.name}` : r.categoryId}</span>
+        <span class="rules-cat">→ ${c ? `${catIconHTML(c)} ${c.name}` : r.categoryId}</span>
       </div>`
     }).join('')
   }
@@ -375,7 +375,12 @@ function renderAccountList() {
 // ===== CATEGORIES =====
 function toggleCatForm() {
   const f = document.getElementById('catForm')
-  f.style.display = f.style.display === 'none' ? 'block' : 'none'
+  const opening = f.style.display === 'none'
+  f.style.display = opening ? 'block' : 'none'
+  if (opening) {
+    const wrap = document.getElementById('catIconPickerWrap')
+    if (wrap) wrap.innerHTML = iconPickerMarkup('catIcon', '')
+  }
 }
 
 function saveCategory() {
@@ -433,7 +438,7 @@ function renderCategoryList() {
           <div class="cat-chip" onclick="openCatEditModal('${c.id}')" style="cursor:pointer">
             <div class="cat-chip-left">
               <span class="cat-dot" style="background:${c.color}"></span>
-              ${c.icon} ${c.name}${c.isSavings ? ' <span class="cat-savings-badge" title="חיסכון חבוי">🪙</span>' : ''}${c.isSavingsReduction ? ' <span class="cat-savings-badge" title="הכנסה הונית">📉</span>' : ''}
+              ${catIconHTML(c)} ${c.name}${c.isSavings ? ' <span class="cat-savings-badge" title="חיסכון חבוי">🪙</span>' : ''}${c.isSavingsReduction ? ' <span class="cat-savings-badge" title="הכנסה הונית">📉</span>' : ''}
             </div>
             <span class="cat-chip-edit">✏️</span>
           </div>`).join('')}
@@ -481,7 +486,7 @@ function openCatEditModal(id) {
 
   document.getElementById('catEditBody').innerHTML = `
     <div class="modal-row"><label class="form-label">שם</label><input id="catEditName" value="${cat.name}"></div>
-    <div class="modal-row"><label class="form-label">אייקון (emoji)</label><input id="catEditIcon" value="${cat.icon || ''}" style="max-width:100px"></div>
+    <div class="modal-row"><label class="form-label">אייקון</label>${iconPickerMarkup('catEditIcon', cat.icon || '')}</div>
     <div class="modal-row"><label class="form-label">צבע</label><input type="color" id="catEditColor" value="${cat.color || '#64748b'}"></div>
     <div class="modal-row"><label class="form-label">סוג</label><select id="catEditType" onchange="_onCatEditTypeChange()" ${cat.system?'disabled':''}>${typeOptions}</select></div>
     ${isSavingsRow}
