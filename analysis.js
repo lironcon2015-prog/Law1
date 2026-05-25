@@ -121,7 +121,7 @@ function _renderExpensePie(periodTx) {
       type: 'doughnut',
       data: {
         labels: expRows.map(r=>r.name),
-        datasets: [{ data: expRows.map(r=>r.total), backgroundColor: expRows.map(r=>r.color), borderWidth: 2, borderColor: '#03040b' }]
+        datasets: [{ data: expRows.map(r=>r.total), backgroundColor: expRows.map(r=>r.color), borderWidth: 2, borderColor: CHART_COLORS.surface }]
       },
       options: {
         responsive: true, maintainAspectRatio: false,
@@ -135,7 +135,7 @@ function _renderExpensePie(periodTx) {
           evt.native.target.style.cursor = items.length > 0 ? 'pointer' : 'default'
         },
         plugins: {
-          legend: { position: 'bottom', labels: { color: '#8aaccc', font: { family:'Heebo', size:11 }, padding: 10 } },
+          legend: { position: 'bottom', labels: { color: CHART_COLORS.ticks, font: { family: CHART_COLORS.font, size: 11 }, padding: 10 } },
           tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${formatCurrency(ctx.raw)}` } }
         }
       }
@@ -265,20 +265,20 @@ function _renderTrendChart(all, period) {
     data: {
       labels,
       datasets: [
-        { type: 'bar',  label: 'הכנסות', data: incomes, backgroundColor: 'rgba(16,185,129,.5)',  borderRadius: 6, borderSkipped: false },
-        { type: 'bar',  label: 'הוצאות', data: exps,    backgroundColor: 'rgba(244,63,94,.5)',   borderRadius: 6, borderSkipped: false },
-        { type: 'line', label: 'נטו',    data: nets,    borderColor: '#3b82f6', backgroundColor: trendNetGrad,
+        { type: 'bar',  label: 'הכנסות', data: incomes, backgroundColor: CHART_COLORS.incomeBg,  borderRadius: 6, borderSkipped: false },
+        { type: 'bar',  label: 'הוצאות', data: exps,    backgroundColor: CHART_COLORS.expenseBg, borderRadius: 6, borderSkipped: false },
+        { type: 'line', label: 'נטו',    data: nets,    borderColor: CHART_COLORS.accent, backgroundColor: trendNetGrad,
           borderWidth: 2.5, tension: 0.45, fill: true,
-          pointRadius: 4, pointBackgroundColor: '#3b82f6', pointBorderColor: '#03040b', pointBorderWidth: 2 },
+          pointRadius: 4, pointBackgroundColor: CHART_COLORS.accent, pointBorderColor: CHART_COLORS.surface, pointBorderWidth: 2 },
       ]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { labels: { color: '#64748b', font: { family: 'Heebo', size: 11 }, boxWidth: 12, padding: 16 } } },
+      plugins: { legend: { labels: { color: CHART_COLORS.muted, font: { family: CHART_COLORS.font, size: 11 }, boxWidth: 12, padding: 16 } } },
       scales: {
-        x: { ticks: { color: '#4d6a8a', font: { family:'Heebo', size:11 } }, grid: { display: false }, border: { display: false } },
-        y: { ticks: { color: '#4d6a8a', font: { family:'Heebo', size:11 }, callback: v => '₪' + (v/1000).toFixed(0) + 'k' },
-             grid: { color: 'rgba(255,255,255,0.04)' }, border: { display: false } }
+        x: { ticks: { color: CHART_COLORS.ticks, font: { family: CHART_COLORS.font, size: 11 } }, grid: { display: false }, border: { display: false } },
+        y: { ticks: { color: CHART_COLORS.ticks, font: { family: CHART_COLORS.font, size: 11 }, callback: v => '₪' + (v/1000).toFixed(0) + 'k' },
+             grid: { color: CHART_COLORS.grid }, border: { display: false } }
       }
     }
   })
@@ -328,17 +328,17 @@ function _renderYoY(all, period) {
     data: {
       labels: ['הכנסות', 'הוצאות', 'נטו'],
       datasets: [
-        { label: 'שנה קודמת',    data: [prvInc, prvExp, prvNet], backgroundColor: 'rgba(100,116,139,.4)', borderRadius: 6, borderSkipped: false },
-        { label: 'תקופה נוכחית', data: [curInc, curExp, curNet], backgroundColor: 'rgba(59,130,246,.65)',  borderRadius: 6, borderSkipped: false },
+        { label: 'שנה קודמת',    data: [prvInc, prvExp, prvNet], backgroundColor: CHART_COLORS.mutedBg, borderRadius: 6, borderSkipped: false },
+        { label: 'תקופה נוכחית', data: [curInc, curExp, curNet], backgroundColor: CHART_COLORS.accentBg, borderRadius: 6, borderSkipped: false },
       ]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { labels: { color: '#64748b', font: { family: 'Heebo', size: 11 }, boxWidth: 12, padding: 16 } } },
+      plugins: { legend: { labels: { color: CHART_COLORS.muted, font: { family: CHART_COLORS.font, size: 11 }, boxWidth: 12, padding: 16 } } },
       scales: {
-        x: { ticks: { color: '#4d6a8a', font: { family:'Heebo', size:11 } }, grid: { display: false }, border: { display: false } },
-        y: { ticks: { color: '#4d6a8a', font: { family:'Heebo', size:11 }, callback: v => '₪' + (v/1000).toFixed(0) + 'k' },
-             grid: { color: 'rgba(255,255,255,0.04)' }, border: { display: false } }
+        x: { ticks: { color: CHART_COLORS.ticks, font: { family: CHART_COLORS.font, size: 11 } }, grid: { display: false }, border: { display: false } },
+        y: { ticks: { color: CHART_COLORS.ticks, font: { family: CHART_COLORS.font, size: 11 }, callback: v => '₪' + (v/1000).toFixed(0) + 'k' },
+             grid: { color: CHART_COLORS.grid }, border: { display: false } }
       }
     }
   })

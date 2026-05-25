@@ -189,21 +189,21 @@ function _renderMonthlyChart(all, period) {
     data: {
       labels,
       datasets: [
-        { type: 'bar',  label: 'הכנסות', data: incomes, backgroundColor: 'rgba(16,185,129,.5)',  borderRadius: 6, borderSkipped: false, yAxisID: 'y' },
-        { type: 'bar',  label: 'הוצאות', data: exps,    backgroundColor: 'rgba(244,63,94,.5)',   borderRadius: 6, borderSkipped: false, yAxisID: 'y' },
-        { type: 'line', label: 'נטו',    data: nets,    borderColor: '#3b82f6', backgroundColor: netGrad,
+        { type: 'bar',  label: 'הכנסות', data: incomes, backgroundColor: CHART_COLORS.incomeBg,  borderRadius: 6, borderSkipped: false, yAxisID: 'y' },
+        { type: 'bar',  label: 'הוצאות', data: exps,    backgroundColor: CHART_COLORS.expenseBg, borderRadius: 6, borderSkipped: false, yAxisID: 'y' },
+        { type: 'line', label: 'נטו',    data: nets,    borderColor: CHART_COLORS.accent, backgroundColor: netGrad,
           borderWidth: 2.5, tension: 0.45, fill: true, yAxisID: 'y',
-          pointRadius: 4, pointBackgroundColor: '#3b82f6', pointBorderColor: '#03040b', pointBorderWidth: 2 },
+          pointRadius: 4, pointBackgroundColor: CHART_COLORS.accent, pointBorderColor: CHART_COLORS.surface, pointBorderWidth: 2 },
       ]
     },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { labels: { color: '#64748b', font: { family: 'Heebo', size: 11 }, boxWidth: 12, padding: 16 } } },
+      plugins: { legend: { labels: { color: CHART_COLORS.muted, font: { family: CHART_COLORS.font, size: 11 }, boxWidth: 12, padding: 16 } } },
       scales: {
-        x: { ticks: { color: '#4d6a8a', font: { family:'Heebo', size:11 } },
+        x: { ticks: { color: CHART_COLORS.ticks, font: { family: CHART_COLORS.font, size: 11 } },
              grid: { display: false }, border: { display: false } },
-        y: { ticks: { color: '#4d6a8a', font: { family:'Heebo', size:11 }, callback: v => '₪' + (v/1000).toFixed(0) + 'k' },
-             grid: { color: 'rgba(255,255,255,0.04)' }, border: { display: false } }
+        y: { ticks: { color: CHART_COLORS.ticks, font: { family: CHART_COLORS.font, size: 11 }, callback: v => '₪' + (v/1000).toFixed(0) + 'k' },
+             grid: { color: CHART_COLORS.grid }, border: { display: false } }
       }
     }
   })
