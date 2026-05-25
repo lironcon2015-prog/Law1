@@ -585,6 +585,72 @@ function _migrateHiddenRecurringKeys() {
   if (changed) setHiddenRecurring(hidden)
 }
 
+// ===== REPRESENTATIVE AMOUNT OVERRIDE =====
+// By default a recurring entry's amount is a smoothed average. Some expenses
+// shouldn't be smoothed — e.g. a mortgage payment that climbs each month until
+// the principal is fully drawn, then stabilises. The user can override the
+// average per entry (keyed by r.key) with either:
+//   - mode 'manual': a per-occurrence amount typed in by hand.
+//   - mode 'pick'  : the amount of one chosen past payment (txId kept for UI).
+// In both cases `amount` is the per-OCCURRENCE figure (same basis as avgAmount,
+// sign preserved); smoothedMonthly is re-derived from it.
+function getRecurringAmountOverrides() { return DB.get('finRecurringAmountOverride', {}) }
+function setRecurringAmountOverrides(obj) { DB.set('finRecurringAmountOverride', obj) }
+
+// Natural sign (+income / -expense) of an entry, so a hand-typed magnitude
+// lands on the correct side regardless of how the user enters it.
+function _recurringSignFor(key) {
+  const e = getAllRecurring().find(r => r.key === key)
+  return (e && e.avgAmount < 0) ? -1 : 1
+}
+
+function applyRecurringManualAmount(key) {
+  const raw = document.getElementById('drillManualAmount')?.value
+  const n = parseFloat(raw)
+  if (!isFinite(n) || n === 0) { alert('הזן סכום תקין.'); return }
+  const ov = getRecurringAmountOverrides()
+  ov[key] = { mode: 'manual', amount: _recurringSignFor(key) * Math.abs(n) }
+  setRecurringAmountOverrides(ov)
+  renderRecurring()
+  if (_drillKey) _renderDrillModal()
+}
+
+function pickRecurringRepresentative(key, txId) {
+  const t = getTransactions().find(x => x.id === txId)
+  if (!t) return
+  const ov = getRecurringAmountOverrides()
+  ov[key] = { mode: 'pick', amount: t.amount, txId }
+  setRecurringAmountOverrides(ov)
+  renderRecurring()
+  if (_drillKey) _renderDrillModal()
+}
+
+function clearRecurringAmountOverride(key) {
+  const ov = getRecurringAmountOverrides()
+  if (!(key in ov)) return
+  delete ov[key]
+  setRecurringAmountOverrides(ov)
+  renderRecurring()
+}
+function clearRecurringAmountOverrideDrill() {
+  if (_drillKey) { clearRecurringAmountOverride(_drillKey); _renderDrillModal() }
+}
+
+// Replaces avgAmount / smoothedMonthly with the user's representative figure.
+// Monthly-equivalent re-derived the same way detection does it (×30/cadenceDays).
+function _applyAmountOverrides(items) {
+  const ov = getRecurringAmountOverrides()
+  if (!ov || Object.keys(ov).length === 0) return items
+  for (const r of items) {
+    const o = ov[r.key]
+    if (!o || typeof o.amount !== 'number') continue
+    r.avgAmount = o.amount
+    r.smoothedMonthly = o.amount * (30 / (r.cadenceDays || 30))
+    r.amountOverride = o
+  }
+  return items
+}
+
 // Reconciles manual groups first so newly-imported tx with a matching vendor
 // are absorbed before the auto pass sees them.
 function getAllRecurring() {
@@ -595,7 +661,7 @@ function getAllRecurring() {
   const manualGroups = _getManualGroupRecurring()
   const overrideKeys = new Set(manualFlags.map(m => m.sourceKey))
   const autoKept = auto.filter(a => !overrideKeys.has(a.sourceKey))
-  return [...autoKept, ...manualFlags, ...manualGroups]
+  return _applyAmountOverrides([...autoKept, ...manualFlags, ...manualGroups])
     .sort((a,b) => Math.abs(b.smoothedMonthly) - Math.abs(a.smoothedMonthly))
 }
 
@@ -705,6 +771,9 @@ function renderRecurring() {
     const smoothNote = showSmoothNote
       ? `<div style="font-size:.7rem;color:var(--text-muted);margin-top:.15rem">${r.avgAmount>0?'+':''}${formatCurrency(r.avgAmount)} ל${r.cadenceLabel}</div>`
       : ''
+    const overrideNote = r.amountOverride
+      ? `<div style="font-size:.7rem;color:var(--accent);margin-top:.15rem">📌 סכום מייצג${r.amountOverride.mode==='pick'?' (תשלום נבחר)':' (ידני)'}</div>`
+      : ''
     // Manual entries get a tailored secondary action (unmerge / clear flag).
     const manualAction = r.source === 'manual-group'
       ? `<button class="btn-ghost" style="font-size:.7rem;padding:.25rem .55rem;margin-inline-start:.3rem" onclick="event.stopPropagation();unmergeManualRecurringByIdx('${idx}')" title="פרק את הקבוצה">פרק</button>`
@@ -715,7 +784,7 @@ function renderRecurring() {
       <tr class="recurring-row ${isHidden?'recurring-row-hidden':''}" onclick="openRecurringDrillByIdx('${idx}')">
         <td style="font-weight:500">${r.vendor} ${sourceBadge}</td>
         <td><span class="type-badge type-income">${r.cadenceLabel}</span></td>
-        <td class="${amountCls}">${r.smoothedMonthly>0?'+':''}${formatCurrency(r.smoothedMonthly)}${smoothNote}</td>
+        <td class="${amountCls}">${r.smoothedMonthly>0?'+':''}${formatCurrency(r.smoothedMonthly)}${smoothNote}${overrideNote}</td>
         <td>${formatDate(r.lastSeen)}</td>
         <td>${formatDate(r.nextExpected)}</td>
         <td title="${r.periods && r.periods !== r.occurrences ? r.occurrences + ' עסקאות לאורך ' + r.periods + ' תקופות' : r.occurrences + ' מופעים'}">${r.periods && r.periods !== r.occurrences ? `${r.occurrences} <span style="color:var(--text-muted);font-size:.7rem">(${r.periods})</span>` : r.occurrences}</td>
@@ -839,7 +908,9 @@ function _renderDrillModal() {
   }
   document.getElementById('drillTitle').textContent = `היסטוריית "${vendor}"`
 
-  const cadence = (getAllRecurring().find(r => r.key === _drillKey) || {}).cadence || 'monthly'
+  const curEntry = getAllRecurring().find(r => r.key === _drillKey) || {}
+  const cadence = curEntry.cadence || 'monthly'
+  const amountOverride = getRecurringAmountOverrides()[_drillKey]
 
   const { start, end } = _getDrillBounds()
   const filtered = allTx
@@ -864,7 +935,7 @@ function _renderDrillModal() {
     </div>` : ''
 
   const rows = filtered.length === 0
-    ? `<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text-muted)">אין עסקאות בתקופה</td></tr>`
+    ? `<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-muted)">אין עסקאות בתקופה</td></tr>`
     : filtered.map(t => {
         const cat = getCategoryById(t.categoryId)
         const mode = t.recurringExcludeFromAuto ? 'out' : (t.recurringExcludeMode || '')
@@ -890,6 +961,11 @@ function _renderDrillModal() {
                 <option value="period" ${mode==='period'?'selected':''}>דלג על תקופה</option>
                 <option value="out" ${mode==='out'?'selected':''}>מחוץ לקיבוץ</option>
               </select>
+            </td>
+            <td style="text-align:center;min-width:5.5rem">
+              ${(amountOverride && amountOverride.mode==='pick' && amountOverride.txId===t.id)
+                ? '<span style="color:var(--accent);font-size:.78rem;font-weight:600">📌 מייצג</span>'
+                : `<button class="btn-ghost" style="font-size:.72rem;padding:.25rem .5rem" onclick="pickRecurringRepresentative('${_drillKey}','${t.id}')" title="קבע תשלום זה כסכום המייצג">בחר כמייצג</button>`}
             </td>
           </tr>`
       }).join('')
@@ -960,6 +1036,32 @@ function _renderDrillModal() {
       ${customRow}
     </div>
     ${criteriaSection}
+    ${(() => {
+      const ovActive = !!amountOverride
+      const monthlyEq = ovActive ? amountOverride.amount * (30 / (curEntry.cadenceDays || 30)) : 0
+      const manualVal = ovActive && amountOverride.mode === 'manual' ? Math.abs(amountOverride.amount) : ''
+      return `
+      <details class="drill-representative" style="margin-bottom:1rem;border:1px solid var(--border);border-radius:8px;padding:.6rem .85rem" ${ovActive?'open':''}>
+        <summary style="cursor:pointer;font-weight:600;font-size:.9rem;display:flex;justify-content:space-between;align-items:center">
+          <span>סכום מייצג</span>
+          ${ovActive
+            ? `<span style="color:var(--accent);font-size:.8rem">📌 קבוע: ${formatCurrency(monthlyEq)}${curEntry.cadenceDays!==30?' לחודש':''}</span>`
+            : '<span style="color:var(--text-muted);font-size:.8rem">ממוצע מוחלק</span>'}
+        </summary>
+        <p style="font-size:.78rem;color:var(--text-muted);margin:.5rem 0 .75rem">
+          כברירת מחדל הסכום מחושב כממוצע מוחלק. אם ההוצאה גדלה בהדרגה (כמו תשלום משכנתא) ולא מתאימה להחלקה — אפשר לקבוע תשלום מייצג: הזן סכום ידני, או בחר תשלום מהרשימה למטה בעזרת "בחר כמייצג".
+        </p>
+        <div style="display:flex;gap:.5rem;align-items:flex-end;flex-wrap:wrap">
+          <div>
+            <label class="form-label" style="margin:0 0 .2rem">סכום התשלום${curEntry.cadenceDays!==30?` (ל${curEntry.cadenceLabel||recurringCadenceLabel(cadence)})`:''}</label>
+            <input type="number" step="0.01" id="drillManualAmount" value="${manualVal}" placeholder="הזן סכום" style="font-size:.85rem;padding:.3rem;width:9rem">
+          </div>
+          <button class="btn-primary" style="font-size:.85rem;padding:.35rem .9rem" onclick="applyRecurringManualAmount('${_drillKey}')">קבע סכום</button>
+          ${ovActive ? `<button class="btn-ghost" style="font-size:.85rem;padding:.35rem .9rem" onclick="clearRecurringAmountOverrideDrill()">חזור לממוצע</button>` : ''}
+        </div>
+        ${ovActive && amountOverride.mode==='pick' ? `<div style="font-size:.78rem;color:var(--text-muted);margin-top:.5rem">נבחר תשלום מהרשימה כסכום מייצג.</div>` : ''}
+      </details>`
+    })()}
     <label style="display:flex;align-items:center;gap:.5rem;margin-bottom:.75rem;cursor:pointer;font-size:.9rem">
       <input type="checkbox" ${isIgnoringOutliers ? 'checked' : ''} onchange="toggleIgnoreOutliersDrill()">
       התעלם מחריגים בחישוב הממוצע
@@ -972,7 +1074,7 @@ function _renderDrillModal() {
     </div>
     <div style="overflow-x:auto;margin-top:1rem">
       <table class="data-table">
-        <thead><tr><th>תאריך</th><th>ספק</th><th>קטגוריה</th><th style="text-align:left">סכום</th><th style="min-width:9.5rem">תקופת שיוך</th><th style="min-width:8.5rem">ספירה</th></tr></thead>
+        <thead><tr><th>תאריך</th><th>ספק</th><th>קטגוריה</th><th style="text-align:left">סכום</th><th style="min-width:9.5rem">תקופת שיוך</th><th style="min-width:8.5rem">ספירה</th><th style="min-width:5.5rem">מייצג</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>`
