@@ -206,7 +206,7 @@ function _drawTxTable() {
   const colspan = (showRunningBalance ? 8 : 7) + (_txSelectMode ? 1 : 0)
 
   document.getElementById('txTable').innerHTML = `
-    <table class="data-table">
+    <table class="data-table tx-table">
       <thead><tr>
         ${selectColHead}
         <th>ספק / קטגוריה</th>
@@ -231,7 +231,7 @@ function _drawTxTable() {
           const dispAmt = isMirror ? -tx.amount : tx.amount
           const isNonCounted = tx.type === 'transfer' || tx.type === 'refund'
           const amountCls = isNonCounted ? 'amount-muted' : (dispAmt>0?'amount-inc':'amount-exp')
-          const balCell = showRunningBalance ? `<td style="font-weight:500">${formatCurrency(rowBalances[tx.id] ?? 0)}</td>` : ''
+          const balCell = showRunningBalance ? `<td class="tx-cell-sec" style="font-weight:500">${formatCurrency(rowBalances[tx.id] ?? 0)}</td>` : ''
           const mirrorLabel = isMirror
             ? (tx.ccPaymentForAccountId === accountId ? 'תשלום לכרטיס' : 'הפקדה')
             : null
@@ -241,7 +241,7 @@ function _drawTxTable() {
           const effMonth = getTxEffectiveMonth(tx)
           const effMonthDisplay = effMonth ? effMonth.slice(5) + '/' + effMonth.slice(0,4) : '—'
           const effMonthMismatch = effMonth && tx.date && effMonth !== tx.date.slice(0,7)
-          const effCell = `<td style="font-size:.8rem;color:${effMonthMismatch?'var(--accent)':'var(--text-muted)'}">${effMonthDisplay}</td>`
+          const effCell = `<td class="tx-cell-sec" style="font-size:.8rem;color:${effMonthMismatch?'var(--accent)':'var(--text-muted)'}">${effMonthDisplay}</td>`
           const recurringFlagBadge = tx.recurringFlag
             ? `<span class="type-badge type-refund" title="מסומן כקבוע (${recurringCadenceLabel(tx.recurringFlag)})" style="margin-inline-start:.3rem">🔁 ${recurringCadenceLabel(tx.recurringFlag)}</span>`
             : ''
@@ -265,22 +265,23 @@ function _drawTxTable() {
             ? `<div style="font-size:.72rem;color:var(--text-muted);margin-top:.1rem">${tx.description}</div>` : ''
           return `<tr ${isNonCounted||isMirror?'class="tx-noncounted"':''}>
             ${selectCell}
-            <td>
+            <td class="tx-cell-main">
               <div class="tx-vendor-cell">
                 <div class="tx-avatar" style="background:${avatarBg}">${avatarIcon}</div>
                 <div>
                   <div class="tx-vendor-name">${vendorName}${recurringFlagBadge}${groupBadge}</div>
                   ${catLabel}${descLine}
+                  <div class="tx-meta-mobile">${formatDate(tx.date)} · ${typeBadge}</div>
                 </div>
               </div>
             </td>
-            <td style="font-size:.85rem;color:var(--text-secondary)">${formatDate(tx.date)}</td>
+            <td class="tx-cell-sec" style="font-size:.85rem;color:var(--text-secondary)">${formatDate(tx.date)}</td>
             ${effCell}
-            <td class="${amountCls}">${_richAmount(dispAmt)}</td>
-            <td>${typeBadge}</td>
+            <td class="${amountCls} tx-cell-amount">${_richAmount(dispAmt)}</td>
+            <td class="tx-cell-sec">${typeBadge}</td>
             ${balCell}
-            <td style="color:var(--text-muted);font-size:.8rem">${tx.notes||''}</td>
-            <td><button class="edit-btn" onclick="openEditModal('${tx.id}')">✏️</button></td>
+            <td class="tx-cell-sec" style="color:var(--text-muted);font-size:.8rem">${tx.notes||''}</td>
+            <td class="tx-cell-edit"><button class="edit-btn" onclick="openEditModal('${tx.id}')">✏️</button></td>
           </tr>`
         }).join('')}
       </tbody>

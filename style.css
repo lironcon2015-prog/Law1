@@ -90,6 +90,51 @@ a { color: inherit; text-decoration: none; cursor: pointer; }
 .empty-state-text { font-size: .87rem; color: var(--text-muted); max-width: 32rem; line-height: 1.6; }
 .empty-state-actions { display: flex; gap: .6rem; flex-wrap: wrap; justify-content: center; margin-top: .5rem; }
 
+/* ===== Transactions: table → cards on mobile ===== */
+.tx-meta-mobile { display: none; }
+@media (max-width: 600px) {
+  .tx-table thead { display: none; }
+  .tx-table, .tx-table tbody, .tx-table tr, .tx-table td { display: block; }
+  .tx-table tr {
+    position: relative;
+    background: var(--bg-surface); border: 1px solid var(--border);
+    border-radius: var(--r-md); padding: .7rem .85rem;
+    padding-inline-end: 7rem; min-height: 4.1rem; margin-bottom: .55rem;
+  }
+  .tx-table tr.tx-noncounted { opacity: .8; }
+  .tx-table td { border: none !important; padding: 0 !important; }
+  .tx-table .tx-cell-sec { display: none !important; }
+  .tx-table .tx-cell-main { min-width: 0; }
+  .tx-table .tx-vendor-name { font-size: .92rem; }
+  .tx-table .tx-cell-amount {
+    position: absolute; top: .7rem; inset-inline-end: .85rem;
+    font-size: 1.02rem; font-weight: 700; white-space: nowrap;
+  }
+  .tx-table .tx-cell-edit { position: absolute; bottom: .5rem; inset-inline-end: .85rem; }
+  .tx-meta-mobile { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; font-size: .74rem; color: var(--text-muted); margin-top: .4rem; }
+}
+
+/* ===== Recurring: table → cards on mobile ===== */
+.rec-meta-mobile { display: none; }
+@media (max-width: 600px) {
+  .recurring-table thead { display: none; }
+  .recurring-table, .recurring-table tbody, .recurring-table tr, .recurring-table td { display: block; }
+  .recurring-table tr {
+    position: relative;
+    background: var(--bg-surface); border: 1px solid var(--border);
+    border-radius: var(--r-md); padding: .7rem .85rem;
+    padding-inline-end: 7rem; min-height: 4.1rem; margin-bottom: .55rem;
+  }
+  .recurring-table td { border: none !important; padding: 0 !important; }
+  .recurring-table .rec-cell-sec { display: none !important; }
+  .recurring-table .rec-cell-amount {
+    position: absolute; top: .7rem; inset-inline-end: .85rem;
+    font-size: 1.02rem; font-weight: 700; white-space: nowrap; text-align: left;
+  }
+  .recurring-table .rec-cell-act { position: absolute; bottom: .55rem; inset-inline-end: .85rem; }
+  .rec-meta-mobile { display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; font-size: .74rem; color: var(--text-muted); margin-top: .4rem; }
+}
+
 /* ===== NAVBAR (mobile) ===== */
 .navbar {
   display: none;
@@ -895,8 +940,9 @@ select option { background-color: #141417; color: var(--text-primary); }
     position: fixed;
     bottom: 0; left: 0; right: 0;
     z-index: 150;
-    background: var(--bg-surface);
-    border-top: 1px solid var(--border);
+    background: rgba(9, 9, 11, 0.88);
+    backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+    border-top: 1px solid var(--border-bright);
     padding-bottom: env(safe-area-inset-bottom, 0px);
     height: calc(var(--bnav-h) + env(safe-area-inset-bottom, 0px));
   }
@@ -915,10 +961,15 @@ select option { background-color: #141417; color: var(--text-primary); }
     transition: color .15s;
     min-height: 44px;
   }
-  .bnav-item svg { stroke-width: 2; }
+  .bnav-item { position: relative; }
+  .bnav-item svg { stroke-width: 2; transition: transform .15s; }
   .bnav-item:active { background: var(--bg-hover); }
   .bnav-item.active { color: var(--accent); }
-  .bnav-item.active svg { stroke: var(--accent); }
+  .bnav-item.active svg { stroke: var(--accent); transform: translateY(-1px); }
+  .bnav-item.active::before {
+    content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+    width: 26px; height: 3px; border-radius: 0 0 4px 4px; background: var(--accent);
+  }
 
   /* ---- Main content layout ---- */
   .main-content {

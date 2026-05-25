@@ -782,13 +782,15 @@ function renderRecurring() {
       : ''
     return `
       <tr class="recurring-row ${isHidden?'recurring-row-hidden':''}" onclick="openRecurringDrillByIdx('${idx}')">
-        <td style="font-weight:500">${r.vendor} ${sourceBadge}</td>
-        <td><span class="type-badge type-income">${r.cadenceLabel}</span></td>
-        <td class="${amountCls}">${r.smoothedMonthly>0?'+':''}${formatCurrency(r.smoothedMonthly)}${smoothNote}${overrideNote}</td>
-        <td>${formatDate(r.lastSeen)}</td>
-        <td>${formatDate(r.nextExpected)}</td>
-        <td title="${r.periods && r.periods !== r.occurrences ? r.occurrences + ' עסקאות לאורך ' + r.periods + ' תקופות' : r.occurrences + ' מופעים'}">${r.periods && r.periods !== r.occurrences ? `${r.occurrences} <span style="color:var(--text-muted);font-size:.7rem">(${r.periods})</span>` : r.occurrences}</td>
-        <td onclick="event.stopPropagation()">
+        <td class="rec-cell-main" style="font-weight:500">${r.vendor} ${sourceBadge}
+          <div class="rec-meta-mobile"><span class="type-badge type-income">${r.cadenceLabel}</span><span>הבא: ${formatDate(r.nextExpected)}</span><span>${r.occurrences} מופעים</span></div>
+        </td>
+        <td class="rec-cell-sec"><span class="type-badge type-income">${r.cadenceLabel}</span></td>
+        <td class="${amountCls} rec-cell-amount">${r.smoothedMonthly>0?'+':''}${formatCurrency(r.smoothedMonthly)}${smoothNote}${overrideNote}</td>
+        <td class="rec-cell-sec">${formatDate(r.lastSeen)}</td>
+        <td class="rec-cell-sec">${formatDate(r.nextExpected)}</td>
+        <td class="rec-cell-sec" title="${r.periods && r.periods !== r.occurrences ? r.occurrences + ' עסקאות לאורך ' + r.periods + ' תקופות' : r.occurrences + ' מופעים'}">${r.periods && r.periods !== r.occurrences ? `${r.occurrences} <span style="color:var(--text-muted);font-size:.7rem">(${r.periods})</span>` : r.occurrences}</td>
+        <td class="rec-cell-act" onclick="event.stopPropagation()">
           ${isHidden
             ? `<button class="btn-ghost" style="font-size:.75rem;padding:.3rem .6rem" onclick="unhideRecurringByIdx('${idx}')">שחזר</button>`
             : `<button class="btn-ghost" style="font-size:.75rem;padding:.3rem .6rem" onclick="hideRecurringByIdx('${idx}')">הסתר</button>`}
