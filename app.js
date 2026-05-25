@@ -42,7 +42,16 @@ function hashTx(tx, accountId) {
 }
 
 // ===== NAVIGATION =====
-function navigate(screen) {
+const SCREENS = ['dashboard', 'transactions', 'import', 'analysis', 'recurring', 'budget', 'property', 'settings']
+let _currentScreen = null
+
+// `fromHash` is true when invoked by the hashchange listener — used to skip a
+// redundant re-render when the URL hash merely echoes the screen we just set.
+function navigate(screen, fromHash = false) {
+  if (!SCREENS.includes(screen)) screen = 'dashboard'
+  if (fromHash && screen === _currentScreen) return
+  _currentScreen = screen
+
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'))
   document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'))
   const el = document.getElementById('screen-' + screen)
@@ -58,6 +67,14 @@ function navigate(screen) {
   if (screen === 'budget') renderBudgetScreen()
   if (screen === 'property') renderProperty()
   if (screen === 'settings') renderSettings()
+
+  // Keep the URL hash in sync for deep-linking + browser back/forward.
+  if (location.hash.slice(1) !== screen) location.hash = screen
+}
+
+function _onHashChange() {
+  const s = location.hash.slice(1)
+  navigate(SCREENS.includes(s) ? s : 'dashboard', true)
 }
 
 function toggleMobileMenu() {
@@ -645,7 +662,9 @@ document.addEventListener('DOMContentLoaded', () => {
   if (typeof migrateExcludeFromUnforeseen_v1 === 'function') migrateExcludeFromUnforeseen_v1()
   if (typeof migrateManualGroupVendorKeys_v1 === 'function') migrateManualGroupVendorKeys_v1()
   if (typeof migrateCategoryIconsToSvg_v1 === 'function') migrateCategoryIconsToSvg_v1()
-  navigate('dashboard')
+  window.addEventListener('hashchange', _onHashChange)
+  const _initialScreen = location.hash.slice(1)
+  navigate(SCREENS.includes(_initialScreen) ? _initialScreen : 'dashboard', true)
 
   const dz = document.getElementById('dropZone')
   if (dz) {
