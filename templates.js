@@ -199,9 +199,67 @@ function parseAmountValue(raw, opts = {}) {
 // ===== MAIN PARSER =====
 // Apply a template to extracted rows. Returns { transactions, stats }.
 // Transaction shape matches Gemini's output so downstream code is agnostic.
+// Some sources (e.g. MAX credit statements) stack several tables in one sheet,
+// each with its OWN header row and a slightly different column layout — the
+// off-cycle table inserts a "תאריך חיוב" column, the FX table adds currency
+// columns. A single fixed index-map therefore mis-aligns every section after
+// the first. To stay robust we re-resolve column indices by matching each
+// section's header LABELS (taken from the primary header) whenever a new
+// header row appears mid-sheet.
+function _normHeaderCell(s) { return String(s ?? '').replace(/\s+/g, ' ').trim() }
+
+// Build { field: label } from the template's mapped indices applied to the
+// primary header row — the labels we'll hunt for in later section headers.
+function _templateFieldLabels(columns, headerRow) {
+  const at = idx => (idx == null ? null : _normHeaderCell(headerRow[idx]) || null)
+  return {
+    date:        at(columns.date?.index),
+    vendor:      at(columns.vendor?.index),
+    description: at(columns.description?.index),
+    category:    at(columns.category?.index),
+    chargeDate:  at(columns.chargeDate?.index),
+    amount:      at(columns.amount?.index),
+    debit:       at(columns.amount?.debitIndex),
+    credit:      at(columns.amount?.creditIndex),
+  }
+}
+
+// A row is a section header if one of its cells exactly matches the (required)
+// date label — data rows hold a date VALUE there, never the label text.
+function _isSectionHeaderRow(row, labels) {
+  if (!labels.date) return false
+  return row.some(c => _normHeaderCell(c) === labels.date)
+}
+
+// Re-resolve indices for this section by locating each field's label in its
+// header row; keep the previous index when a label isn't found.
+function _remapColumnsToHeader(baseColumns, headerRow, labels) {
+  const find = label => {
+    if (!label) return null
+    const i = headerRow.findIndex(c => _normHeaderCell(c) === label)
+    return i >= 0 ? i : null
+  }
+  const c = JSON.parse(JSON.stringify(baseColumns))
+  const setIdx = (obj, key, label) => { const i = find(label); if (i != null && obj) obj[key] = i }
+  setIdx(c.date, 'index', labels.date)
+  setIdx(c.vendor, 'index', labels.vendor)
+  setIdx(c.description, 'index', labels.description)
+  setIdx(c.category, 'index', labels.category)
+  setIdx(c.chargeDate, 'index', labels.chargeDate)
+  if (c.amount) {
+    setIdx(c.amount, 'index', labels.amount)
+    setIdx(c.amount, 'debitIndex', labels.debit)
+    setIdx(c.amount, 'creditIndex', labels.credit)
+  }
+  return c
+}
+
 function parseWithTemplate(rows, template) {
   const { columns, headerRowIndex = 0, skipFooterRows = 0 } = template
   const dataRows = rows.slice(headerRowIndex + 1, rows.length - (skipFooterRows || 0))
+
+  const labels = _templateFieldLabels(columns, rows[headerRowIndex] || [])
+  let cur = columns  // active mapping; switches when a new section header appears
 
   const stats = { total: dataRows.length, parsed: 0, skipped: 0, skippedReasons: {} }
   const skip = (reason) => { stats.skipped++; stats.skippedReasons[reason] = (stats.skippedReasons[reason]||0) + 1 }
@@ -211,38 +269,42 @@ function parseWithTemplate(rows, template) {
     // Empty row?
     if (!row || row.every(c => c == null || String(c).trim() === '')) { skip('ריקה'); continue }
 
-    const dateRaw = row[columns.date?.index]
-    const date = parseDateValue(dateRaw, columns.date?.format)
+    // New section header → re-map columns for the rows that follow, skip it.
+    if (_isSectionHeaderRow(row, labels)) { cur = _remapColumnsToHeader(columns, row, labels); skip('כותרת מקטע'); continue }
+
+    const columns_ = cur
+    const dateRaw = row[columns_.date?.index]
+    const date = parseDateValue(dateRaw, columns_.date?.format)
     if (!date) { skip('תאריך לא תקין'); continue }
 
     let amount = null
-    if (columns.amount?.mode === 'debit_credit') {
-      const debit  = parseAmountValue(row[columns.amount.debitIndex])
-      const credit = parseAmountValue(row[columns.amount.creditIndex])
+    if (columns_.amount?.mode === 'debit_credit') {
+      const debit  = parseAmountValue(row[columns_.amount.debitIndex])
+      const credit = parseAmountValue(row[columns_.amount.creditIndex])
       if (debit && debit !== 0)       amount = -Math.abs(debit)
       else if (credit && credit !== 0) amount = Math.abs(credit)
       else                             amount = null
-    } else if (columns.amount?.mode === 'signed' || !columns.amount?.mode) {
+    } else if (columns_.amount?.mode === 'signed' || !columns_.amount?.mode) {
       // Single signed-amount column. `flipSign` handles sources that use
       // positives for expenses.
-      amount = parseAmountValue(row[columns.amount?.index])
-      if (amount != null && columns.amount?.flipSign) amount = -amount
+      amount = parseAmountValue(row[columns_.amount?.index])
+      if (amount != null && columns_.amount?.flipSign) amount = -amount
     }
     if (amount == null || amount === 0) { skip('סכום לא תקין'); continue }
 
-    const vendor = columns.vendor?.index != null ? String(row[columns.vendor.index] ?? '').trim() : ''
+    const vendor = columns_.vendor?.index != null ? String(row[columns_.vendor.index] ?? '').trim() : ''
     if (!vendor) { skip('ספק חסר'); continue }
 
-    const description = columns.description?.index != null ? String(row[columns.description.index] ?? '').trim() : ''
-    const category    = columns.category?.index    != null ? String(row[columns.category.index]    ?? '').trim() : ''
+    const description = columns_.description?.index != null ? String(row[columns_.description.index] ?? '').trim() : ''
+    const category    = columns_.category?.index    != null ? String(row[columns_.category.index]    ?? '').trim() : ''
 
     // Optional explicit "charge date" column on CC bills. If present and parsable,
     // we surface it on the row; getTxEffectiveMonth then uses it directly instead
     // of inferring the billing month from billingDay rollover.
     let chargeDate = ''
-    if (columns.chargeDate?.index != null) {
-      const cdRaw = row[columns.chargeDate.index]
-      const parsed = parseDateValue(cdRaw, columns.chargeDate.format || columns.date?.format)
+    if (columns_.chargeDate?.index != null) {
+      const cdRaw = row[columns_.chargeDate.index]
+      const parsed = parseDateValue(cdRaw, columns_.chargeDate.format || columns_.date?.format)
       if (parsed) chargeDate = parsed
     }
 
