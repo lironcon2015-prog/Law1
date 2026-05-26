@@ -1,4 +1,4 @@
-const APP_VERSION = '1.21.36'
+const APP_VERSION = '1.21.37'
 
 // ===== STORAGE =====
 const DB = {
@@ -244,6 +244,7 @@ function collectBackupData() {
     recurringHidden:     DB.get('finRecurringHidden', []),
     recurringIgnoreOut:  DB.get('finRecurringIgnoreOutliers', []),
     recurringAmountOverride: DB.get('finRecurringAmountOverride', {}),
+    recurringCadenceOverride: DB.get('finRecurringCadenceOverride', {}),
     hiddenTopVendors:    DB.get('finHiddenTopVendors', []),
     property:            DB.get('finProperty', null),
     propertyPayments:    DB.get('finPropertyPayments', []),
@@ -266,6 +267,7 @@ function applyBackupData(data) {
   if (data.recurringHidden)    DB.set('finRecurringHidden',         data.recurringHidden)
   if (data.recurringIgnoreOut) DB.set('finRecurringIgnoreOutliers', data.recurringIgnoreOut)
   if (data.recurringAmountOverride) DB.set('finRecurringAmountOverride', data.recurringAmountOverride)
+  if (data.recurringCadenceOverride) DB.set('finRecurringCadenceOverride', data.recurringCadenceOverride)
   if (data.hiddenTopVendors)   DB.set('finHiddenTopVendors',        data.hiddenTopVendors)
   if (data.property)           DB.set('finProperty',                data.property)
   if (data.propertyPayments)   DB.set('finPropertyPayments',        data.propertyPayments)

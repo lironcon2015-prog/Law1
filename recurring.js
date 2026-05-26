@@ -651,6 +651,47 @@ function _applyAmountOverrides(items) {
   return items
 }
 
+// ===== CADENCE OVERRIDE =====
+// Auto-detection sometimes mis-classifies how often an item recurs. The user
+// can pin the cadence per entry (keyed by r.key); it wins over the detected /
+// flagged cadence: relabel, re-derive the monthly-equivalent from the
+// per-occurrence avg, and shift the next-expected date.
+function getRecurringCadenceOverrides() { return DB.get('finRecurringCadenceOverride', {}) }
+
+function setRecurringCadenceOverride(key, cadence) {
+  const ov = getRecurringCadenceOverrides()
+  if (cadence && RECURRING_CADENCES[cadence]) ov[key] = cadence
+  else delete ov[key]
+  DB.set('finRecurringCadenceOverride', ov)
+  renderRecurring()
+  if (_drillKey) _renderDrillModal()
+}
+
+function clearRecurringCadenceOverride(key) {
+  const ov = getRecurringCadenceOverrides()
+  if (!(key in ov)) return
+  delete ov[key]
+  DB.set('finRecurringCadenceOverride', ov)
+  renderRecurring()
+  if (_drillKey) _renderDrillModal()
+}
+
+function _applyCadenceOverrides(items) {
+  const ov = getRecurringCadenceOverrides()
+  if (!ov || Object.keys(ov).length === 0) return items
+  for (const r of items) {
+    const cad = RECURRING_CADENCES[ov[r.key]]
+    if (!cad) continue
+    r.cadence = ov[r.key]
+    r.cadenceLabel = cad.label
+    r.cadenceDays = cad.days
+    r.smoothedMonthly = (r.avgAmount || 0) * (30 / cad.days)
+    r.nextExpected = _addDays(r.lastSeen, cad.days)
+    r.cadenceOverride = true
+  }
+  return items
+}
+
 // Reconciles manual groups first so newly-imported tx with a matching vendor
 // are absorbed before the auto pass sees them.
 function getAllRecurring() {
@@ -661,7 +702,7 @@ function getAllRecurring() {
   const manualGroups = _getManualGroupRecurring()
   const overrideKeys = new Set(manualFlags.map(m => m.sourceKey))
   const autoKept = auto.filter(a => !overrideKeys.has(a.sourceKey))
-  return _applyAmountOverrides([...autoKept, ...manualFlags, ...manualGroups])
+  return _applyCadenceOverrides(_applyAmountOverrides([...autoKept, ...manualFlags, ...manualGroups]))
     .sort((a,b) => Math.abs(b.smoothedMonthly) - Math.abs(a.smoothedMonthly))
 }
 
@@ -913,6 +954,8 @@ function _renderDrillModal() {
   const curEntry = getAllRecurring().find(r => r.key === _drillKey) || {}
   const cadence = curEntry.cadence || 'monthly'
   const amountOverride = getRecurringAmountOverrides()[_drillKey]
+  const cadenceOpts = Object.entries(RECURRING_CADENCES)
+    .map(([k, v]) => `<option value="${k}" ${cadence === k ? 'selected' : ''}>${v.label}</option>`).join('')
 
   const { start, end } = _getDrillBounds()
   const filtered = allTx
@@ -1036,6 +1079,13 @@ function _renderDrillModal() {
         ${rangeBtn('custom', 'טווח מותאם')}
       </div>
       ${customRow}
+    </div>
+    <div class="drill-cadence" style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:1rem;border:1px solid var(--border);border-radius:8px;padding:.55rem .85rem">
+      <span style="font-weight:600;font-size:.9rem">תדירות</span>
+      <select onchange="setRecurringCadenceOverride('${_drillKey}', this.value)" style="font-size:.85rem;padding:.3rem .5rem">${cadenceOpts}</select>
+      ${curEntry.cadenceOverride
+        ? `<span style="color:var(--accent);font-size:.78rem">✎ ידני</span><button class="btn-ghost" style="font-size:.78rem;padding:.25rem .6rem" onclick="clearRecurringCadenceOverride('${_drillKey}')">חזור לאוטומטי</button>`
+        : '<span style="color:var(--text-muted);font-size:.78rem">זוהה אוטומטית — ניתן לשנות</span>'}
     </div>
     ${criteriaSection}
     ${(() => {
