@@ -13,6 +13,7 @@ function renderSettings() {
   renderTemplatesList()
   renderRulesList()
   renderAliasList()
+  if (typeof renderFeedbackList === 'function') renderFeedbackList()
   document.getElementById('appVersion').textContent = 'גרסה ' + APP_VERSION
 }
 

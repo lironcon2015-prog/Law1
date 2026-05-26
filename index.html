@@ -350,6 +350,7 @@
       <button class="tab-btn" onclick="switchTab('aliases',this)">איחוד ספקים</button>
       <button class="tab-btn" onclick="switchTab('data',this)">ניהול נתונים</button>
       <button class="tab-btn" onclick="switchTab('backup',this)">גיבוי</button>
+      <button class="tab-btn" onclick="switchTab('feedback',this)">משוב ורעיונות</button>
     </div>
 
     <div class="tab-panel" id="tab-accounts">
@@ -606,6 +607,14 @@
       </div>
     </div>
 
+    <div class="tab-panel" id="tab-feedback" style="display:none">
+      <div class="card">
+        <div class="card-title">משוב ורעיונות</div>
+        <p style="font-size:.85rem;color:var(--text-muted);margin-bottom:1.25rem">באגים ורעיונות שתיעדת דרך כפתורי 🐞 / 💡 שבראש כל מסך. אפשר לסמן כטופל, למחוק, ולהעתיק הכל כדי להעביר לקלוד.</p>
+        <div id="feedbackList"></div>
+      </div>
+    </div>
+
   </section>
 
 </main>
@@ -788,26 +797,27 @@
   <button onclick="applyUpdate()">עדכן עכשיו</button>
 </div>
 
-<script>const _v = '1.21.31';</script>
-<script src="app.js?v=1.21.31"></script>
-<script src="core.js?v=1.21.31"></script>
-<script src="ui.js?v=1.21.31"></script>
-<script src="icons.js?v=1.21.31"></script>
-<script src="templates.js?v=1.21.31"></script>
-<script src="autocat.js?v=1.21.31"></script>
-<script src="budget.js?v=1.21.31"></script>
-<script src="budgetGen.js?v=1.21.31"></script>
-<script src="recurring.js?v=1.21.31"></script>
-<script src="dashboard.js?v=1.21.31"></script>
-<script src="transactions.js?v=1.21.31"></script>
-<script src="wizard.js?v=1.21.31"></script>
-<script src="import.js?v=1.21.31"></script>
-<script src="analysis.js?v=1.21.31"></script>
-<script src="settings.js?v=1.21.31"></script>
-<script src="drive.js?v=1.21.31"></script>
-<script src="property.js?v=1.21.31"></script>
-<script src="reports.js?v=1.21.31"></script>
-<script src="scrollMirror.js?v=1.21.31"></script>
+<script>const _v = '1.21.32';</script>
+<script src="app.js?v=1.21.32"></script>
+<script src="core.js?v=1.21.32"></script>
+<script src="ui.js?v=1.21.32"></script>
+<script src="icons.js?v=1.21.32"></script>
+<script src="templates.js?v=1.21.32"></script>
+<script src="autocat.js?v=1.21.32"></script>
+<script src="budget.js?v=1.21.32"></script>
+<script src="budgetGen.js?v=1.21.32"></script>
+<script src="recurring.js?v=1.21.32"></script>
+<script src="dashboard.js?v=1.21.32"></script>
+<script src="transactions.js?v=1.21.32"></script>
+<script src="wizard.js?v=1.21.32"></script>
+<script src="import.js?v=1.21.32"></script>
+<script src="analysis.js?v=1.21.32"></script>
+<script src="settings.js?v=1.21.32"></script>
+<script src="drive.js?v=1.21.32"></script>
+<script src="property.js?v=1.21.32"></script>
+<script src="reports.js?v=1.21.32"></script>
+<script src="feedback.js?v=1.21.32"></script>
+<script src="scrollMirror.js?v=1.21.32"></script>
 
 <!-- SERVICE WORKER REGISTRATION & UPDATE LOGIC -->
 <script>

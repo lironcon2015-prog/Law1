@@ -1,4 +1,4 @@
-const APP_VERSION = '1.21.31'
+const APP_VERSION = '1.21.32'
 
 // ===== STORAGE =====
 const DB = {
@@ -245,6 +245,7 @@ function exportData() {
     property:            DB.get('finProperty', null),
     propertyPayments:    DB.get('finPropertyPayments', []),
     propertyManualMortgage: DB.get('finPropertyManualMortgage', []),
+    feedback:            DB.get('finFeedback', []),
     exportedAt:          new Date().toISOString(),
   }
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
@@ -275,6 +276,7 @@ function importData(input) {
       if (data.property)           DB.set('finProperty',                data.property)
       if (data.propertyPayments)   DB.set('finPropertyPayments',        data.propertyPayments)
       if (data.propertyManualMortgage) DB.set('finPropertyManualMortgage', data.propertyManualMortgage)
+      if (data.feedback)           DB.set('finFeedback',                data.feedback)
       invalidatePLCache()
       invalidateSavingsCache()
       invalidateCapitalIncomeCache()
