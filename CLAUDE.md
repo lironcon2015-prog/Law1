@@ -78,8 +78,8 @@
 כל הצגה של vendor חייבת לעבור דרך `resolveVendor()`. ה-aliases מאחסנים רשימת patterns → displayName ומתאימים substring longest-first. מתפרסמים גם ב-grouping (recurring, top vendors) כדי שעסקאות אותו "ספק לוגי" יאוחדו גם אם שמם הגולמי שונה.
 
 ### Analysis scope ≠ Dashboard scope
-הדשבורד משתמש ב-`countedExpenseAmount` (PL only — חיובי CC מרוכזים).
-הניתוח משתמש ב-`analysisExpenseAmount` (כולל פירוט CC, פרט לשורת התשלום המרוכזת) — כדי לקבל פיזור קטגוריות מדויק.
+מדדי-הכותרת בדשבורד (סה"כ הכנסות/הוצאות/נטו) משתמשים ב-`sumExpenses`/`countedExpenseAmount` (PL only — חיובי CC מרוכזים).
+אבל **פירוט הקטגוריות** (גם בדשבורד וגם בניתוח) משתמש ב-`analysisExpenseAmount` (+`ccAccountsWithDetail`) כדי לקבל פיזור מדויק: שורת התשלום המרוכז של כרטיס נשמטת רק אם לאותו כרטיס יש פירוט עסקאות בתקופה (אז מוצג הפירוט במקום); כרטיס ללא פירוט — הלאמפ נשאר.
 
 ### Cache invalidation
 יש caches עם TTL 500ms ב-`core.js`: `_plAcctIdsCache`, `_savingsCatCache`, `_capitalIncomeCatCache`, `_vendorAliasIdx`. אחרי שינוי מקור (חשבונות/קטגוריות/aliases) חובה לקרוא ל-`invalidate*Cache` המתאים, אחרת הטבלאות ב-UI מסתכנות בסטייל במשך חצי שנייה.

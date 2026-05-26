@@ -210,14 +210,16 @@ function _renderMonthlyChart(all, period) {
 }
 
 function _renderCategoryBreakdown(periodTx, expenses) {
+  // CC-aware distribution (same scope as the analysis pie): a card's lump
+  // payment is dropped only when that card has itemized detail in this period
+  // (the detail rows are shown instead); cards with no detail keep the lump.
+  const savingsInvestIds = analysisExpenseSavingsInvestIds()
+  const ccAccsWithDetail = ccAccountsWithDetail(periodTx)
   const bycat = {}
   let pieTotal = 0
   periodTx.forEach(t => {
-    const ca = countedExpenseAmount(t)
+    const ca = analysisExpenseAmount(t, savingsInvestIds, ccAccsWithDetail)
     if (ca <= 0) return
-    // Exclude CC-payment bank rows from the category pie — their details
-    // live on the CC account and would distort category attribution.
-    if (t.ccPaymentForAccountId) return
     const cat = getCategoryById(t.categoryId)
     const key = cat?.id || '__none__'
     if (!bycat[key]) bycat[key] = { name: cat?.name || 'לא מסווג', color: cat?.color || '#64748b', total: 0 }
