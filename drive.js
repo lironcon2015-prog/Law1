@@ -109,22 +109,7 @@ async function driveBackup() {
   }
   _showDriveStatus('מגבה…', false)
   try {
-    const payload = JSON.stringify({
-      transactions:        getTransactions(),
-      accounts:            getAccounts(),
-      categories:          getCategories(),
-      budgets:             getBudgets(),
-      rules:               getCategoryRules(),
-      templates:           getTemplates(),
-      aliases:             getVendorAliases(),
-      recurringGroups:     DB.get('finManualRecurringGroups', []),
-      recurringHidden:     DB.get('finRecurringHidden', []),
-      recurringIgnoreOut:  DB.get('finRecurringIgnoreOutliers', []),
-      property:            DB.get('finProperty', null),
-      propertyPayments:    DB.get('finPropertyPayments', []),
-      propertyManualMortgage: DB.get('finPropertyManualMortgage', []),
-      exportedAt:          new Date().toISOString(),
-    }, null, 2)
+    const payload = JSON.stringify(collectBackupData(), null, 2)
 
     const existing = await _driveFindFile()
     let fileResult
@@ -181,19 +166,7 @@ async function driveRestore() {
     const isValid = data && typeof data === 'object' && !Array.isArray(data) &&
       (Array.isArray(data.transactions) || Array.isArray(data.accounts) || Array.isArray(data.categories))
     if (!isValid) throw new Error('קובץ הגיבוי בענן פגום — לא בוצע שחזור.')
-    if (data.transactions)       DB.set('finTransactions',            data.transactions)
-    if (data.accounts)           DB.set('finAccounts',                data.accounts)
-    if (data.categories)         DB.set('finCategories',              data.categories)
-    if (data.budgets)            DB.set('finBudgets',                 data.budgets)
-    if (data.rules)              DB.set('finCategoryRules',           data.rules)
-    if (data.templates)          DB.set('finImportTemplates',         data.templates)
-    if (data.aliases)            DB.set('finVendorAliases',           data.aliases)
-    if (data.recurringGroups)    DB.set('finManualRecurringGroups',   data.recurringGroups)
-    if (data.recurringHidden)    DB.set('finRecurringHidden',         data.recurringHidden)
-    if (data.recurringIgnoreOut) DB.set('finRecurringIgnoreOutliers', data.recurringIgnoreOut)
-    if (data.property)           DB.set('finProperty',                data.property)
-    if (data.propertyPayments)   DB.set('finPropertyPayments',        data.propertyPayments)
-    if (data.propertyManualMortgage) DB.set('finPropertyManualMortgage', data.propertyManualMortgage)
+    applyBackupData(data)
     localStorage.setItem('driveBackupFileId', file.id)
     localStorage.setItem('driveBackupAt', new Date(file.modifiedTime).toISOString())
     _showDriveStatus('✅ שוחזר — מרענן…', false)

@@ -1,4 +1,4 @@
-const APP_VERSION = '1.21.33'
+const APP_VERSION = '1.21.34'
 
 // ===== STORAGE =====
 const DB = {
@@ -228,8 +228,11 @@ async function testGeminiModels(apiKey, promptText, modelsList) {
 }
 
 // ===== EXPORT / IMPORT =====
-function exportData() {
-  const data = {
+// Single source of truth for the backup payload — used by the JSON export,
+// JSON import, AND the Google Drive backup/restore (drive.js). Keep all three
+// in sync by editing only these two functions.
+function collectBackupData() {
+  return {
     transactions:        getTransactions(),
     accounts:            getAccounts(),
     categories:          getCategories(),
@@ -248,7 +251,34 @@ function exportData() {
     feedback:            DB.get('finFeedback', []),
     exportedAt:          new Date().toISOString(),
   }
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+}
+
+function applyBackupData(data) {
+  if (!data || typeof data !== 'object') return
+  if (data.transactions)       DB.set('finTransactions',            data.transactions)
+  if (data.accounts)           DB.set('finAccounts',                data.accounts)
+  if (data.categories)         DB.set('finCategories',              data.categories)
+  if (data.budgets)            DB.set('finBudgets',                 data.budgets)
+  if (data.rules)              DB.set('finCategoryRules',           data.rules)
+  if (data.templates)          DB.set('finImportTemplates',         data.templates)
+  if (data.aliases)            DB.set('finVendorAliases',           data.aliases)
+  if (data.recurringGroups)    DB.set('finManualRecurringGroups',   data.recurringGroups)
+  if (data.recurringHidden)    DB.set('finRecurringHidden',         data.recurringHidden)
+  if (data.recurringIgnoreOut) DB.set('finRecurringIgnoreOutliers', data.recurringIgnoreOut)
+  if (data.recurringAmountOverride) DB.set('finRecurringAmountOverride', data.recurringAmountOverride)
+  if (data.hiddenTopVendors)   DB.set('finHiddenTopVendors',        data.hiddenTopVendors)
+  if (data.property)           DB.set('finProperty',                data.property)
+  if (data.propertyPayments)   DB.set('finPropertyPayments',        data.propertyPayments)
+  if (data.propertyManualMortgage) DB.set('finPropertyManualMortgage', data.propertyManualMortgage)
+  if (data.feedback)           DB.set('finFeedback',                data.feedback)
+  if (typeof invalidatePLCache === 'function')            invalidatePLCache()
+  if (typeof invalidateSavingsCache === 'function')       invalidateSavingsCache()
+  if (typeof invalidateCapitalIncomeCache === 'function') invalidateCapitalIncomeCache()
+  if (typeof invalidateVendorAliasCache === 'function')   invalidateVendorAliasCache()
+}
+
+function exportData() {
+  const blob = new Blob([JSON.stringify(collectBackupData(), null, 2)], { type: 'application/json' })
   const a = document.createElement('a')
   a.href = URL.createObjectURL(blob)
   a.download = `כספים-גיבוי-${new Date().toLocaleDateString('he-IL').replace(/\//g, '-')}.json`
@@ -260,27 +290,7 @@ function importData(input) {
   const reader = new FileReader()
   reader.onload = e => {
     try {
-      const data = JSON.parse(e.target.result)
-      if (data.transactions)       DB.set('finTransactions',            data.transactions)
-      if (data.accounts)           DB.set('finAccounts',                data.accounts)
-      if (data.categories)         DB.set('finCategories',              data.categories)
-      if (data.budgets)            DB.set('finBudgets',                 data.budgets)
-      if (data.rules)              DB.set('finCategoryRules',           data.rules)
-      if (data.templates)          DB.set('finImportTemplates',         data.templates)
-      if (data.aliases)            DB.set('finVendorAliases',           data.aliases)
-      if (data.recurringGroups)    DB.set('finManualRecurringGroups',   data.recurringGroups)
-      if (data.recurringHidden)    DB.set('finRecurringHidden',         data.recurringHidden)
-      if (data.recurringIgnoreOut) DB.set('finRecurringIgnoreOutliers', data.recurringIgnoreOut)
-      if (data.recurringAmountOverride) DB.set('finRecurringAmountOverride', data.recurringAmountOverride)
-      if (data.hiddenTopVendors)   DB.set('finHiddenTopVendors',        data.hiddenTopVendors)
-      if (data.property)           DB.set('finProperty',                data.property)
-      if (data.propertyPayments)   DB.set('finPropertyPayments',        data.propertyPayments)
-      if (data.propertyManualMortgage) DB.set('finPropertyManualMortgage', data.propertyManualMortgage)
-      if (data.feedback)           DB.set('finFeedback',                data.feedback)
-      invalidatePLCache()
-      invalidateSavingsCache()
-      invalidateCapitalIncomeCache()
-      invalidateVendorAliasCache()
+      applyBackupData(JSON.parse(e.target.result))
       toast('הנתונים יובאו בהצלחה', { type: 'success' })
       renderSettings()
     } catch { toast('שגיאה בקריאת הקובץ', { type: 'error' }) }
