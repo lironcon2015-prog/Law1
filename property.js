@@ -352,7 +352,7 @@ function _propRow(row) {
       <td>${date('paidDate', row.paidDate)}${variance}</td>
       <td>
         <select class="prop-input" onchange="onPropertyRowChange('${row.id}','type',this.value)">${typeOpts}</select>
-        <input type="number" class="prop-input" min="0" step="1" value="${row.paymentNumber||''}" onchange="onPropertyRowChange('${row.id}','paymentNumber',this.value)" placeholder="#" style="margin-top:.2rem;width:4rem;text-align:right">
+        <input type="number" class="prop-input" min="0" step="1" value="${row.paymentNumber||''}" onchange="onPropertyRowChange('${row.id}','paymentNumber',this.value)" placeholder="מס׳ תשלום" style="margin-top:.3rem;width:100%">
       </td>
       <td>${num('amount', row.amount)}</td>
       <td>${num('paidAmount', row.paidAmount)}</td>

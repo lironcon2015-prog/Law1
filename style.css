@@ -337,7 +337,7 @@ input:not([type=color]):not([type=checkbox]), select, textarea {
 }
 input:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
 select option { background-color: #141417; color: var(--text-primary); }
-.prop-table .prop-input { text-align: left; direction: ltr; padding: .3rem .4rem; }
+.prop-table .prop-input { text-align: center; direction: ltr; padding: .3rem .4rem; }
 .form-label { display: block; font-size: .8rem; color: var(--text-secondary); margin-bottom: .35rem; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
 .error-msg { color: var(--expense); font-size: .85rem; margin-top: .5rem; }
@@ -1292,6 +1292,8 @@ select option { background-color: #141417; color: var(--text-primary); }
 .prop-progress-fill  { height: 100%; background: linear-gradient(90deg, #22c55e, #3b82f6); border-radius: 4px; transition: width .3s ease; }
 
 .prop-table th, .prop-table td { vertical-align: middle; }
+.prop-table th { text-align: center; }
+.prop-table td:first-child, .prop-table th:first-child { text-align: start; }
 .prop-table .prop-input {
   width: 100%; min-width: 5rem;
   padding: .3rem .45rem; font-size: .85rem;
@@ -1300,7 +1302,7 @@ select option { background-color: #141417; color: var(--text-primary); }
   color: var(--text-primary);
 }
 .prop-table input[type=date].prop-input { min-width: 8rem; }
-.prop-table input[type=number].prop-input { text-align: end; }
+.prop-table input[type=number].prop-input { text-align: center; }
 
 .prop-status {
   display: inline-block; padding: .15rem .55rem; border-radius: 999px;
