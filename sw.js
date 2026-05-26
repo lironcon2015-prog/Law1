@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'finance-v1.21.32'
+const CACHE_VERSION = 'finance-v1.21.33'
 const ASSETS = [
   './',
   './index.html',
@@ -47,8 +47,9 @@ self.addEventListener('activate', e => {
 })
 
 self.addEventListener('fetch', e => {
-  // חסימה מוחלטת: אסור ל-Service Worker לגעת בקריאות API (דרייב או AI)
+  // חסימה מוחלטת: אסור ל-Service Worker לגעת בקריאות API (דרייב / AI / GitHub)
   if (e.request.url.includes('googleapis.com')) return
+  if (e.request.url.includes('api.github.com')) return
 
   // network-first for HTML and version.json
   const url = new URL(e.request.url)

@@ -6,6 +6,71 @@
 function getFeedback() { return DB.get('finFeedback', []) }
 function saveFeedback(list) { DB.set('finFeedback', list) }
 
+// ===== GitHub sync (optional) =====
+// When a token + repo are configured, each item is also opened as a GitHub
+// issue (label user-feedback + bug/enhancement) so a Claude session can read
+// and triage it automatically. Token lives in localStorage only and is NOT
+// included in the JSON backup.
+function getGithubToken() { return DB.get('finGithubToken', '') }
+function getGithubRepo() { return DB.get('finGithubRepo', 'lironcon2015-prog/homebudget') }
+
+function saveGithubConfig() {
+  const token = (document.getElementById('ghToken')?.value || '').trim()
+  const repo = (document.getElementById('ghRepo')?.value || '').trim()
+  DB.set('finGithubToken', token)
+  DB.set('finGithubRepo', repo)
+  toast('החיבור ל-GitHub נשמר', { type: 'success' })
+  loadGithubConfig()
+}
+
+function loadGithubConfig() {
+  const t = document.getElementById('ghToken')
+  const r = document.getElementById('ghRepo')
+  const s = document.getElementById('ghStatus')
+  if (r) r.value = getGithubRepo()
+  if (t) t.value = getGithubToken()
+  if (s) {
+    const on = !!getGithubToken() && !!getGithubRepo()
+    s.textContent = on ? '✓ מחובר — באגים/רעיונות ייפתחו כ-issues' : 'לא מחובר — שמירה מקומית בלבד'
+    s.style.color = on ? 'var(--income)' : 'var(--text-muted)'
+  }
+}
+
+async function createGithubIssue(item) {
+  const token = getGithubToken(), repo = getGithubRepo()
+  if (!token || !repo) return null
+  const labels = ['user-feedback', item.type === 'bug' ? 'bug' : 'enhancement']
+  const body = `${item.text || ''}\n\n---\n- סוג: ${item.type === 'bug' ? 'באג' : 'רעיון'}\n- מסך: ${item.screen}\n- גרסה: ${item.appVersion}\n- נוצר: ${new Date(item.createdAt).toLocaleString('he-IL')}`
+  const res = await fetch(`https://api.github.com/repos/${repo}/issues`, {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title: (item.title || item.text || 'משוב').slice(0, 120), body, labels }),
+  })
+  if (!res.ok) throw new Error('GitHub ' + res.status)
+  const data = await res.json()
+  return { number: data.number, url: data.html_url }
+}
+
+// Persist any issue metadata back onto the stored item.
+function _markFeedbackSynced(id, issue) {
+  const list = getFeedback()
+  const it = list.find(x => x.id === id)
+  if (it) { it.issueNumber = issue.number; it.issueUrl = issue.url; saveFeedback(list) }
+}
+
+async function syncFeedbackItem(id) {
+  const it = getFeedback().find(x => x.id === id)
+  if (!it) return
+  if (!getGithubToken()) { toast('לא הוגדר חיבור ל-GitHub', { type: 'error' }); return }
+  try {
+    const issue = await createGithubIssue(it)
+    if (issue) { _markFeedbackSynced(id, issue); toast(`נפתח issue #${issue.number}`, { type: 'success' }); renderFeedbackList() }
+  } catch (e) {
+    toast('שליחה ל-GitHub נכשלה: ' + e.message, { type: 'error' })
+  }
+}
+
+
 // Two subtle ghost buttons mounted into every screen's .page-header.
 const FEEDBACK_DOCK_HTML = `
   <div class="feedback-dock" role="group" aria-label="משוב">
@@ -50,17 +115,24 @@ function openFeedbackModal(type) {
       const title = (overlay.querySelector('#fbTitle').value || '').trim()
       const text = (overlay.querySelector('#fbText').value || '').trim()
       if (!title && !text) { toast('כתוב כותרת או פירוט', { type: 'error' }); return }
-      const list = getFeedback()
-      list.push({
+      const item = {
         id: genId(), type, title, text,
         screen: _currentScreenLabel(),
         appVersion: typeof APP_VERSION !== 'undefined' ? APP_VERSION : '',
         createdAt: Date.now(), status: 'open',
-      })
+      }
+      const list = getFeedback()
+      list.push(item)
       saveFeedback(list)
       close()
       toast(isBug ? 'הבאג נשמר 🐞' : 'הרעיון נשמר 💡', { type: 'success' })
       if (document.getElementById('feedbackList')) renderFeedbackList()
+      // Best-effort GitHub sync (non-blocking; local copy already saved).
+      if (getGithubToken()) {
+        createGithubIssue(item)
+          .then(issue => { if (issue) { _markFeedbackSynced(item.id, issue); toast(`נפתח issue #${issue.number} ב-GitHub`, { type: 'success' }); if (document.getElementById('feedbackList')) renderFeedbackList() } })
+          .catch(err => toast('שמור מקומית; שליחה ל-GitHub נכשלה (' + err.message + ')', { type: 'error', duration: 5000 }))
+      }
     }
   })
   document.body.appendChild(overlay)
@@ -109,12 +181,16 @@ function renderFeedbackList() {
   const open = list.filter(x => x.status !== 'done').length
   const fmt = ts => new Date(ts).toLocaleDateString('he-IL')
 
+  const ghOn = !!getGithubToken()
   const card = x => {
     const isBug = x.type === 'bug'
+    const syncBadge = x.issueNumber
+      ? `<a href="${x.issueUrl}" target="_blank" class="fb-sync fb-sync-ok" title="נפתח ב-GitHub">#${x.issueNumber} ↗</a>`
+      : (ghOn ? `<button class="fb-sync fb-sync-retry" onclick="syncFeedbackItem('${x.id}')" title="שלח ל-GitHub">טרם נשלח · שלח</button>` : '')
     return `
       <div class="fb-item ${x.status === 'done' ? 'fb-item-done' : ''}">
         <div class="fb-item-main">
-          <div class="fb-item-title">${isBug ? '🐞' : '💡'} ${x.title || '(ללא כותרת)'}</div>
+          <div class="fb-item-title">${isBug ? '🐞' : '💡'} ${x.title || '(ללא כותרת)'} ${syncBadge}</div>
           ${x.text ? `<div class="fb-item-text">${x.text}</div>` : ''}
           <div class="fb-item-meta">${x.screen} · גרסה ${x.appVersion || '—'} · ${fmt(x.createdAt)}</div>
         </div>
