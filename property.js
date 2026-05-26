@@ -322,7 +322,7 @@ function editPropertyNote(id) {
 function _propRow(row) {
   const st = _propertyStatus(row)
   const typeOpts = Object.entries(PROPERTY_TYPES)
-    .map(([k, v]) => `<option value="${k}" ${row.type===k?'selected':''}>${v.icon} ${v.label}</option>`).join('')
+    .map(([k, v]) => `<option value="${k}" ${row.type===k?'selected':''}>${v.label}</option>`).join('')
   const trackOpts = Object.entries(PROPERTY_TRACKS)
     .map(([k, v]) => `<option value="${k}" ${row.track===k?'selected':''}>${v.label}</option>`).join('')
 
@@ -352,7 +352,7 @@ function _propRow(row) {
       <td>${date('paidDate', row.paidDate)}${variance}</td>
       <td>
         <select class="prop-input" onchange="onPropertyRowChange('${row.id}','type',this.value)">${typeOpts}</select>
-        <input type="number" class="prop-input" min="0" step="1" value="${row.paymentNumber||''}" onchange="onPropertyRowChange('${row.id}','paymentNumber',this.value)" placeholder="מס׳ תשלום" style="margin-top:.3rem;width:100%">
+        <input type="number" class="prop-input" min="0" step="1" value="${row.paymentNumber||''}" onchange="onPropertyRowChange('${row.id}','paymentNumber',this.value)" placeholder="מספר" style="margin-top:.3rem;width:100%">
       </td>
       <td>${num('amount', row.amount)}</td>
       <td>${num('paidAmount', row.paidAmount)}</td>

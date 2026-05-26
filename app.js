@@ -1,4 +1,4 @@
-const APP_VERSION = '1.21.30'
+const APP_VERSION = '1.21.31'
 
 // ===== STORAGE =====
 const DB = {
