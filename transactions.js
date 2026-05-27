@@ -183,6 +183,13 @@ function _drawTxTable() {
   const TYPE_LABEL = { income:'הכנסה', expense:'הוצאה', transfer:'העברה', refund:'החזר' }
   const TYPE_CLS = { income:'type-income', expense:'type-expense', transfer:'type-transfer', refund:'type-refund' }
 
+  // Refund ↔ expense links: map expenseId → total refunded, and refundId → expense.
+  const _allTx = getTransactions()
+  const _refundedByExpense = {}
+  const _txById = {}
+  _allTx.forEach(t => { _txById[t.id] = t })
+  _allTx.forEach(t => { if (t.refundForTxId) _refundedByExpense[t.refundForTxId] = (_refundedByExpense[t.refundForTxId] || 0) + Math.abs(t.amount) })
+
   // Compute running balance (only when single account filtered)
   // We need to compute balance at each row. Since table is date desc, we:
   // - get balance up to & including each row's date (but only for transactions on/before that row)
@@ -263,6 +270,15 @@ function _drawTxTable() {
           const vendorName = resolveVendor(tx.vendor, tx.amount, getTxAliasDay(tx)) || '—'
           const descLine = tx.description && tx.description !== tx.vendor
             ? `<div style="font-size:.72rem;color:var(--text-muted);margin-top:.1rem">${tx.description}</div>` : ''
+          // Refund ↔ expense traceability.
+          let refundLine = ''
+          if (tx.refundForTxId && _txById[tx.refundForTxId]) {
+            const e = _txById[tx.refundForTxId]
+            const ev = resolveVendor(e.vendor, e.amount, getTxAliasDay(e)) || e.vendor || '—'
+            refundLine = `<div style="font-size:.72rem;color:var(--accent);margin-top:.1rem">↩ החזר עבור: ${ev}</div>`
+          } else if (_refundedByExpense[tx.id]) {
+            refundLine = `<div style="font-size:.72rem;color:var(--income);margin-top:.1rem">↩ הוחזר ${formatCurrency(_refundedByExpense[tx.id])}</div>`
+          }
           return `<tr ${isNonCounted||isMirror?'class="tx-noncounted"':''}>
             ${selectCell}
             <td class="tx-cell-main">
@@ -270,7 +286,7 @@ function _drawTxTable() {
                 <div class="tx-avatar" style="background:${avatarBg}">${avatarIcon}</div>
                 <div>
                   <div class="tx-vendor-name">${vendorName}${recurringFlagBadge}${groupBadge}</div>
-                  ${catLabel}${descLine}
+                  ${catLabel}${descLine}${refundLine}
                   <div class="tx-meta-mobile">${formatDate(tx.date)} · ${typeBadge}</div>
                 </div>
               </div>

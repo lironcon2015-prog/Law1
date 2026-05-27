@@ -1,4 +1,4 @@
-const APP_VERSION = '1.21.38'
+const APP_VERSION = '1.21.39'
 
 // ===== STORAGE =====
 const DB = {
@@ -316,6 +316,7 @@ function openEditModal(id) {
     }
   }
   _editId = tx.id
+  _editRefundForTxId = tx.refundForTxId || null
   const cats = getCategories()
   const accs = getAccounts()
   const catOptions = cats.map(c => `<option value="${c.id}" ${tx.categoryId === c.id ? 'selected' : ''}>${catIconText(c)} ${c.name}</option>`).join('')
@@ -339,6 +340,10 @@ function openEditModal(id) {
     <div class="modal-row"><label class="form-label">סוג</label><select id="editType" onchange="_onEditTypeChange()">${typeOptions}</select></div>
     <div class="modal-row" id="editDestRow" style="display:${showDest}"><label class="form-label">חשבון יעד (להעברה)</label><select id="editDestAccount"><option value="">—</option>${destAccOptions}</select></div>
     <div class="modal-row"><label class="form-label">קטגוריה</label><select id="editCategory"><option value="">ללא קטגוריה</option>${catOptions}</select></div>
+    <div class="modal-row" id="editRefundRow" style="display:${tx.type==='refund'?'block':'none'}">
+      <label class="form-label">החזר עבור הוצאה</label>
+      <div id="editRefundLink">${_refundLinkRowHTML()}</div>
+    </div>
     <div class="modal-row" style="margin-top:-.5rem"><button type="button" class="btn-ghost" style="font-size:.85rem;padding:.45rem .8rem" onclick="applyCategoryToAllSimilar()">החל קטגוריה על כל העסקאות עם אותו ספק (קדימה ואחורה)</button></div>
     <div class="modal-row">
       <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;font-size:.9rem">
@@ -373,6 +378,87 @@ function openEditModal(id) {
 function _onEditTypeChange() {
   const tp = document.getElementById('editType').value
   document.getElementById('editDestRow').style.display = tp === 'transfer' ? 'block' : 'none'
+  const rr = document.getElementById('editRefundRow')
+  if (rr) rr.style.display = tp === 'refund' ? 'block' : 'none'
+}
+
+// ===== REFUND → EXPENSE LINK =====
+let _editRefundForTxId = null
+
+function _refundLinkRowHTML() {
+  if (_editRefundForTxId) {
+    const e = getTransactions().find(t => t.id === _editRefundForTxId)
+    if (e) {
+      const v = (typeof resolveVendor === 'function') ? (resolveVendor(e.vendor, e.amount, getTxAliasDay(e)) || e.vendor) : e.vendor
+      return `<div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+        <span style="background:var(--bg-elevated);padding:.35rem .6rem;border-radius:8px;font-size:.85rem">↩ ${v} · ${formatCurrency(e.amount)} · ${formatDate(e.date)}</span>
+        <button type="button" class="btn-ghost" style="font-size:.8rem;padding:.3rem .6rem" onclick="openRefundPicker()">שנה</button>
+        <button type="button" class="btn-ghost" style="font-size:.8rem;padding:.3rem .6rem;color:var(--expense)" onclick="unlinkRefund()">נתק</button>
+      </div>`
+    }
+  }
+  return `<button type="button" class="btn-ghost" style="font-size:.85rem;padding:.45rem .8rem" onclick="openRefundPicker()">בחר הוצאה לקיזוז</button>`
+}
+
+function _refreshRefundLinkRow() {
+  const el = document.getElementById('editRefundLink')
+  if (el) el.innerHTML = _refundLinkRowHTML()
+}
+
+function unlinkRefund() { _editRefundForTxId = null; _refreshRefundLinkRow() }
+
+function openRefundPicker() {
+  const catSel = document.getElementById('refundPickCat')
+  if (catSel) {
+    catSel.innerHTML = '<option value="">כל הקטגוריות</option>' +
+      getCategories().filter(c => c.type === 'expense').map(c => `<option value="${c.id}">${catIconText(c)} ${c.name}</option>`).join('')
+  }
+  const s = document.getElementById('refundPickSearch'); if (s) s.value = ''
+  renderRefundPickerList()
+  document.getElementById('refundPickerModal').classList.add('open')
+}
+function closeRefundPicker() { document.getElementById('refundPickerModal').classList.remove('open') }
+
+function renderRefundPickerList() {
+  const term = (document.getElementById('refundPickSearch')?.value || '').trim().toLowerCase()
+  const catFilter = document.getElementById('refundPickCat')?.value || ''
+  const days = parseInt(document.getElementById('refundPickPeriod')?.value || '90', 10)
+  const cutoff = days > 0 ? _iso(new Date(Date.now() - days * 86400000)) : ''
+  // Candidate expenses: real outflows (not the refund itself / transfers / other refunds).
+  let cands = getTransactions().filter(t =>
+    t.id !== _editId && t.amount < 0 && t.type !== 'transfer' && t.type !== 'refund'
+  )
+  if (cutoff) cands = cands.filter(t => (t.date || '') >= cutoff)
+  if (catFilter) cands = cands.filter(t => t.categoryId === catFilter)
+  if (term) cands = cands.filter(t => {
+    const v = (resolveVendor(t.vendor, t.amount, getTxAliasDay(t)) || t.vendor || '').toLowerCase()
+    return v.includes(term) || String(Math.abs(t.amount)).includes(term)
+  })
+  cands.sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+  cands = cands.slice(0, 200)
+
+  const el = document.getElementById('refundPickList')
+  if (!el) return
+  if (cands.length === 0) { el.innerHTML = '<p style="color:var(--text-muted);font-size:.85rem;text-align:center;padding:1.5rem">לא נמצאו הוצאות מתאימות</p>'; return }
+  el.innerHTML = cands.map(t => {
+    const cat = getCategoryById(t.categoryId)
+    const v = resolveVendor(t.vendor, t.amount, getTxAliasDay(t)) || t.vendor || '—'
+    return `<div class="refund-pick-row" onclick="selectRefundExpense('${t.id}')" style="display:flex;justify-content:space-between;align-items:center;gap:.6rem;padding:.55rem .7rem;border:1px solid var(--border);border-radius:8px;margin-bottom:.4rem;cursor:pointer">
+      <div style="min-width:0"><div style="font-weight:500">${v}</div><div style="font-size:.75rem;color:var(--text-muted)">${formatDate(t.date)}${cat ? ' · ' + cat.name : ''}</div></div>
+      <span class="amount-exp" style="font-weight:600;white-space:nowrap">${formatCurrency(t.amount)}</span>
+    </div>`
+  }).join('')
+}
+
+function selectRefundExpense(txId) {
+  _editRefundForTxId = txId
+  // Auto-fill the refund's category from the linked expense (manual override
+  // still possible — the user can change the category select afterwards).
+  const e = getTransactions().find(t => t.id === txId)
+  const catSel = document.getElementById('editCategory')
+  if (e && e.categoryId && catSel) catSel.value = e.categoryId
+  _refreshRefundLinkRow()
+  closeRefundPicker()
 }
 function closeEditModal() { document.getElementById('editModal').classList.remove('open'); _editId = null; _editIsNew = false }
 function saveEditModal() {
@@ -440,6 +526,10 @@ function saveEditModal() {
   const editedIdx = txs.findIndex(t => t.id === _editId)
   const edited = editedIdx >= 0 ? txs[editedIdx] : null
   if (edited) { if (oneOff) edited.oneOff = true; else delete edited.oneOff }
+  if (edited) {
+    if (edited.type === 'refund' && _editRefundForTxId) edited.refundForTxId = _editRefundForTxId
+    else delete edited.refundForTxId
+  }
   if (edited && !oneOff && edited.categoryId && edited.type !== 'transfer' && edited.vendor) {
     propagated = propagateCategoryToSimilar(txs, edited.vendor, edited.categoryId, edited.id)
   }
