@@ -17,6 +17,7 @@ function _buildVendorCategoryRules(txs) {
   const rules = {}
   for (const t of txs) {
     if (!t.categoryId || !t.vendor) continue
+    if (t.oneOff) continue  // one-off manual categorizations don't teach the vendor→category map
     const k = normalizeVendorForAutocat(t.vendor)
     if (!k) continue
     if (!rules[k]) rules[k] = {}

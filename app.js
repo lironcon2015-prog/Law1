@@ -1,4 +1,4 @@
-const APP_VERSION = '1.21.37'
+const APP_VERSION = '1.21.38'
 
 // ===== STORAGE =====
 const DB = {
@@ -340,6 +340,13 @@ function openEditModal(id) {
     <div class="modal-row" id="editDestRow" style="display:${showDest}"><label class="form-label">חשבון יעד (להעברה)</label><select id="editDestAccount"><option value="">—</option>${destAccOptions}</select></div>
     <div class="modal-row"><label class="form-label">קטגוריה</label><select id="editCategory"><option value="">ללא קטגוריה</option>${catOptions}</select></div>
     <div class="modal-row" style="margin-top:-.5rem"><button type="button" class="btn-ghost" style="font-size:.85rem;padding:.45rem .8rem" onclick="applyCategoryToAllSimilar()">החל קטגוריה על כל העסקאות עם אותו ספק (קדימה ואחורה)</button></div>
+    <div class="modal-row">
+      <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;font-size:.9rem">
+        <input type="checkbox" id="editOneOff" ${tx.oneOff ? 'checked' : ''} style="width:auto;margin:0">
+        <span>סיווג חד-פעמי — אל תחיל על עסקאות דומות (ביט/פייבוקס וכו')</span>
+      </label>
+      <div style="font-size:.72rem;color:var(--text-muted);margin-top:.3rem">הקטגוריה ושם הספק יחולו על העסקה הזו בלבד — בלי הפצה לעסקאות אחרות ובלי שהזיהוי האוטומטי ילמד מהן.</div>
+    </div>
     ${tx.recurringGroupId ? (() => {
       const grp = (typeof getManualRecurringGroups === 'function') ? getManualRecurringGroups().find(g => g.id === tx.recurringGroupId) : null
       const label = grp?.label || 'קבוצה ידנית'
@@ -425,11 +432,15 @@ function saveEditModal() {
   }
   // Auto-propagate: if a category was set on a non-transfer transaction, apply
   // it to all uncategorized transactions with the same normalized vendor (past
-  // and future). User categorizes once — system learns.
+  // and future). User categorizes once — system learns. The "one-off" flag
+  // (e.g. Bit/PayBox, where each payment is unrelated) opts out: no propagation
+  // and autocat won't learn from it.
+  const oneOff = !!document.getElementById('editOneOff')?.checked
   let propagated = 0
   const editedIdx = txs.findIndex(t => t.id === _editId)
   const edited = editedIdx >= 0 ? txs[editedIdx] : null
-  if (edited && edited.categoryId && edited.type !== 'transfer' && edited.vendor) {
+  if (edited) { if (oneOff) edited.oneOff = true; else delete edited.oneOff }
+  if (edited && !oneOff && edited.categoryId && edited.type !== 'transfer' && edited.vendor) {
     propagated = propagateCategoryToSimilar(txs, edited.vendor, edited.categoryId, edited.id)
   }
 
