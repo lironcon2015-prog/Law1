@@ -829,34 +829,47 @@
   <button onclick="applyUpdate()">עדכן עכשיו</button>
 </div>
 
-<script>const _v = '1.21.39';</script>
-<script src="app.js?v=1.21.39"></script>
-<script src="core.js?v=1.21.39"></script>
-<script src="ui.js?v=1.21.39"></script>
-<script src="icons.js?v=1.21.39"></script>
-<script src="templates.js?v=1.21.39"></script>
-<script src="autocat.js?v=1.21.39"></script>
-<script src="budget.js?v=1.21.39"></script>
-<script src="budgetGen.js?v=1.21.39"></script>
-<script src="recurring.js?v=1.21.39"></script>
-<script src="dashboard.js?v=1.21.39"></script>
-<script src="transactions.js?v=1.21.39"></script>
-<script src="wizard.js?v=1.21.39"></script>
-<script src="import.js?v=1.21.39"></script>
-<script src="analysis.js?v=1.21.39"></script>
-<script src="settings.js?v=1.21.39"></script>
-<script src="drive.js?v=1.21.39"></script>
-<script src="property.js?v=1.21.39"></script>
-<script src="reports.js?v=1.21.39"></script>
-<script src="feedback.js?v=1.21.39"></script>
-<script src="scrollMirror.js?v=1.21.39"></script>
+<script>const _v = '1.21.40';</script>
+<script src="app.js?v=1.21.40"></script>
+<script src="core.js?v=1.21.40"></script>
+<script src="ui.js?v=1.21.40"></script>
+<script src="icons.js?v=1.21.40"></script>
+<script src="templates.js?v=1.21.40"></script>
+<script src="autocat.js?v=1.21.40"></script>
+<script src="budget.js?v=1.21.40"></script>
+<script src="budgetGen.js?v=1.21.40"></script>
+<script src="recurring.js?v=1.21.40"></script>
+<script src="dashboard.js?v=1.21.40"></script>
+<script src="transactions.js?v=1.21.40"></script>
+<script src="wizard.js?v=1.21.40"></script>
+<script src="import.js?v=1.21.40"></script>
+<script src="analysis.js?v=1.21.40"></script>
+<script src="settings.js?v=1.21.40"></script>
+<script src="drive.js?v=1.21.40"></script>
+<script src="property.js?v=1.21.40"></script>
+<script src="reports.js?v=1.21.40"></script>
+<script src="feedback.js?v=1.21.40"></script>
+<script src="scrollMirror.js?v=1.21.40"></script>
 
 <!-- SERVICE WORKER REGISTRATION & UPDATE LOGIC -->
 <script>
   let _swReg = null;
   let _reloadOnControllerChange = false;
+  // Two real causes of the "popup appears twice" bug:
+  //  1) Both the initial _watchWorker(reg.installing) AND the updatefound
+  //     handler can attach a `statechange` listener to the SAME worker, so the
+  //     'installed' transition fires the toast twice.
+  //  2) After applyUpdate → SKIP_WAITING → controllerchange → reload, the
+  //     post-reload registration can momentarily see reg.waiting and re-show
+  //     the toast for the version we just installed.
+  const _watchedWorkers = new WeakSet();
+  function _justUpdatedWindow() {
+    const ts = parseInt(sessionStorage.getItem('_swJustUpdated') || '0', 10);
+    return ts && (Date.now() - ts < 15000);
+  }
 
   function _showUpdateToast() {
+    if (_justUpdatedWindow()) return;
     const t = document.getElementById('updateToast');
     if (t) t.classList.add('show');
   }
@@ -865,13 +878,15 @@
     if (t) t.classList.remove('show');
   }
   function applyUpdate() {
+    sessionStorage.setItem('_swJustUpdated', String(Date.now()));
     const waiting = _swReg && _swReg.waiting;
     if (!waiting) { window.location.reload(); return; }
     _reloadOnControllerChange = true;
     waiting.postMessage('SKIP_WAITING');
   }
   function _watchWorker(worker) {
-    if (!worker) return;
+    if (!worker || _watchedWorkers.has(worker)) return;
+    _watchedWorkers.add(worker);
     worker.addEventListener('statechange', () => {
       if (worker.state === 'installed' && navigator.serviceWorker.controller) {
         _showUpdateToast();
