@@ -238,8 +238,43 @@ function _finalizeParsedTransactions(parsed, accountId) {
   const inferredChargeDate = fileBillingMonth
     ? `${fileBillingMonth}-${String(ccBillingDay).padStart(2, '0')}`
     : ''
-  if (isCCImport && inferredChargeDate) {
-    parsed.forEach(t => { if (!t.chargeDate) t.chargeDate = inferredChargeDate })
+  // Pre-enrich so installment metadata is available for the date-remap
+  // decision below. The downstream map() also re-runs enrichment idempotently,
+  // so it's safe to mutate `parsed` in place.
+  if (isCCImport && typeof enrichDetectedFields === 'function') {
+    parsed.forEach((t, i) => {
+      const e = enrichDetectedFields(t)
+      if (e.installmentCurrent) t.installmentCurrent = e.installmentCurrent
+      if (e.installmentTotal)   t.installmentTotal   = e.installmentTotal
+      if (e.standingOrder)      t.standingOrder      = true
+      if (e.detectedProvider)   t.detectedProvider   = e.detectedProvider
+      if (e.vendor && e.vendor !== t.vendor) t.vendor = e.vendor
+    })
+  }
+  if (isCCImport) {
+    parsed.forEach(t => {
+      if (t.chargeDate) return  // explicit chargeDate from file wins
+      // Installments whose date is from a different cycle than this bill's
+      // (typical when the CC issuer prints the original purchase date instead
+      // of the per-cycle charge date) get remapped to the bill cycle, keeping
+      // the day-of-month. Once date is corrected we don't need chargeDate —
+      // getTxEffectiveMonth derives the bill month from date + billingDay.
+      const isInstallment = t.installmentCurrent && t.installmentTotal
+      if (isInstallment && fileBillingMonth && typeof remapInstallmentDateToBillCycle === 'function') {
+        const natural = (typeof getTxEffectiveMonth === 'function')
+          ? getTxEffectiveMonth({ date: t.date, accountId })
+          : ''
+        if (natural && natural !== fileBillingMonth) {
+          const newDate = remapInstallmentDateToBillCycle(t.date, fileBillingMonth, ccBillingDay)
+          if (newDate && newDate !== t.date) {
+            t._originalDate = t.date
+            t.date = newDate
+            return
+          }
+        }
+      }
+      if (inferredChargeDate) t.chargeDate = inferredChargeDate
+    })
   }
 
   // Multi-set dedupe: each existing row is one slot that can be consumed by
@@ -453,10 +488,12 @@ function saveImport() {
                         installmentTotal:   t.installmentTotal,
                         installmentFinalMonth: t._installmentFinalMonth,
                         standingOrder:      t.standingOrder,
+                        originalDate:       t._originalDate,
                       }) : '',
     ...(t.installmentCurrent ? { installmentCurrent: t.installmentCurrent } : {}),
     ...(t.installmentTotal   ? { installmentTotal:   t.installmentTotal   } : {}),
     ...(t._installmentFinalMonth ? { installmentFinalMonth: t._installmentFinalMonth } : {}),
+    ...(t._originalDate ? { originalTransactionDate: t._originalDate } : {}),
     ...(t.standingOrder ? { standingOrder: true } : {}),
     ...(t.detectedProvider ? { detectedProvider: t.detectedProvider } : {}),
     sourceHash:       t._hash,

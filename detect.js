@@ -126,6 +126,34 @@ function computeInstallmentFinalMonth(effectiveMonth, current, total) {
   return `${ny}-${String(nm).padStart(2, '0')}`
 }
 
+// Some CC bills print the installment's ORIGINAL purchase date instead of
+// the per-cycle charge date — e.g., installment 7/12 of a Nov 2025 purchase
+// shows up on the June 2026 bill with date=30/11/2025. We map that into the
+// bill's actual cycle so the tx sorts/displays correctly:
+//   - keep the day-of-month from the original purchase (30)
+//   - pick the calendar month so the day, after CC rollover, lands in the
+//     bill cycle:
+//       day  < billingDay → use billingMonth   (no rollover)
+//       day >= billingDay → use billingMonth-1 (rollover bumps it forward)
+// Day 31 clamps to the target month's last day (e.g., 30 in April).
+function remapInstallmentDateToBillCycle(origIsoDate, billingMonth, billingDay) {
+  if (!origIsoDate || !billingMonth) return ''
+  const m1 = String(origIsoDate).match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  const m2 = String(billingMonth).match(/^(\d{4})-(\d{2})$/)
+  if (!m1 || !m2) return ''
+  const origDay = parseInt(m1[3], 10)
+  const bDay = billingDay || 10
+  let ty = parseInt(m2[1], 10)
+  let tm = parseInt(m2[2], 10)
+  if (origDay >= bDay) {
+    tm -= 1
+    if (tm === 0) { tm = 12; ty -= 1 }
+  }
+  const daysInMonth = new Date(ty, tm, 0).getDate()
+  const day = Math.min(origDay, daysInMonth)
+  return `${ty}-${String(tm).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+}
+
 // Auto-note builder — assembles the human-readable line we drop into tx.notes
 // when the user hasn't typed anything there yet. Keeps things in Hebrew, in
 // the same word order the user expected ("תשלום X מתוך Y · ...").
@@ -137,6 +165,13 @@ function buildAutoNotes(t) {
       const [y, m] = t.installmentFinalMonth.split('-')
       if (y && m) parts.push(`חודש חיוב אחרון: ${m}/${y}`)
     }
+  }
+  // Surface the historical purchase date when we remapped the tx into a
+  // newer cycle — keeps the original date discoverable without distorting
+  // the bill-cycle ordering.
+  if (t.originalDate) {
+    const m = String(t.originalDate).match(/^(\d{4})-(\d{2})-(\d{2})$/)
+    if (m) parts.push(`תאריך עסקה מקורי: ${m[3]}/${m[2]}/${m[1]}`)
   }
   if (t.standingOrder) parts.push('הוראת קבע')
   return parts.join(' · ')

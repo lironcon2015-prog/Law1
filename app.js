@@ -1,4 +1,4 @@
-const APP_VERSION = '1.21.42'
+const APP_VERSION = '1.21.43'
 
 // ===== STORAGE =====
 const DB = {
@@ -794,6 +794,56 @@ function migrateDetectFields_v1() {
   if (changed > 0) console.log(`Migration v1: enriched ${changed} transactions with installments / standing-order / bit-paybox detection`)
 }
 
+// Historical CC bills sometimes printed the installment's ORIGINAL purchase
+// date instead of the per-cycle charge date — so installment 7/12 of a Nov
+// 2025 purchase ended up stored as date=2025-11-30, chargeDate=2026-06-10,
+// which got effectiveMonth right but displayed the wrong date everywhere
+// else. This migration walks installment tx whose chargeDate (not date) is
+// driving the effective month and remaps date into the bill cycle, while
+// preserving the original day-of-month and stashing the historical date in
+// notes + originalTransactionDate.
+function migrateInstallmentDates_v1() {
+  if (localStorage.getItem('migration_installment_dates_v1') === '1') return
+  if (typeof remapInstallmentDateToBillCycle !== 'function') return
+  if (typeof getTxEffectiveMonth !== 'function') return
+  const txs = getTransactions()
+  const accs = getAccounts()
+  const accById = Object.fromEntries(accs.map(a => [a.id, a]))
+  let changed = 0
+  for (const t of txs) {
+    if (!t.installmentCurrent || !t.installmentTotal) continue
+    if (!t.chargeDate) continue
+    if (t.originalTransactionDate) continue
+    const acc = accById[t.accountId]
+    if (!acc || acc.type !== 'credit_card') continue
+    // Only act when chargeDate is the thing routing this tx — i.e., the
+    // date alone would land it in a different month.
+    const dateOnly = getTxEffectiveMonth({ date: t.date, accountId: t.accountId })
+    const effective = getTxEffectiveMonth(t)
+    if (!dateOnly || !effective || dateOnly === effective) continue
+    const billingMonth = effective
+    const billingDay = acc.billingDay || 10
+    const newDate = remapInstallmentDateToBillCycle(t.date, billingMonth, billingDay)
+    if (!newDate || newDate === t.date) continue
+    t.originalTransactionDate = t.date
+    t.date = newDate
+    delete t.chargeDate
+    if (typeof buildAutoNotes === 'function') {
+      const clause = (() => {
+        const m = String(t.originalTransactionDate).match(/^(\d{4})-(\d{2})-(\d{2})$/)
+        return m ? `תאריך עסקה מקורי: ${m[3]}/${m[2]}/${m[1]}` : ''
+      })()
+      if (clause && !(t.notes || '').includes(clause)) {
+        t.notes = (t.notes && t.notes.trim()) ? `${t.notes} · ${clause}` : clause
+      }
+    }
+    changed++
+  }
+  if (changed > 0) DB.set('finTransactions', txs)
+  localStorage.setItem('migration_installment_dates_v1', '1')
+  if (changed > 0) console.log(`Migration v1: remapped ${changed} installment txs into their bill cycles`)
+}
+
 // One-shot migration: the v1.21 release moved the recurring narrowing config
 // off its own localStorage key (finRecurringGroupCriteria, briefly used in
 // 1.21.0) and into the existing vendor-alias schema, so the criteria editor
@@ -854,6 +904,7 @@ document.addEventListener('DOMContentLoaded', () => {
   migrateOrphanedTransfers_v4()
   migrateRecurringCriteriaToAliases_v1()
   migrateDetectFields_v1()
+  migrateInstallmentDates_v1()
   migrateBudgetType_v1()
   migrateBudgetMonthly_v2()
   if (typeof migrateExcludeFromUnforeseen_v1 === 'function') migrateExcludeFromUnforeseen_v1()
