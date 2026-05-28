@@ -2,7 +2,7 @@
 <html lang="he" dir="rtl">
 <head>
   <meta charset="UTF-8">
-  <!-- v1.21.16 -->
+  <!-- v1.21.42 -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -171,6 +171,24 @@
         <select id="txAccountFilter" onchange="_txPage=0;_drawTxTable()"></select>
         <select id="txCategoryFilter" onchange="_txPage=0;_drawTxTable()"></select>
         <select id="txFlowFilter" onchange="_txPage=0;_drawTxTable()"></select>
+        <button id="txAdvToggleBtn" class="btn-ghost tx-adv-toggle" type="button" onclick="toggleTxAdvFilters()">▼ אפשרויות סינון נוספות</button>
+      </div>
+      <div id="txAdvPanel" class="tx-adv-panel" style="display:none">
+        <div class="tx-adv-group">
+          <label class="form-label" for="txAmountMin">סכום מ־ (₪)</label>
+          <input id="txAmountMin" type="number" step="0.01" min="0" placeholder="ללא" oninput="_onTxAdvChange()">
+        </div>
+        <div class="tx-adv-group">
+          <label class="form-label" for="txAmountMax">סכום עד (₪)</label>
+          <input id="txAmountMax" type="number" step="0.01" min="0" placeholder="ללא" oninput="_onTxAdvChange()">
+        </div>
+        <div class="tx-adv-group tx-adv-checks">
+          <label class="tx-adv-check"><input type="checkbox" id="txInstallmentFilter" onchange="_onTxAdvChange()"> 💳 רק עסקאות תשלומים</label>
+          <label class="tx-adv-check"><input type="checkbox" id="txStandingOrderFilter" onchange="_onTxAdvChange()"> 📌 רק הוראות קבע</label>
+        </div>
+        <div class="tx-adv-actions">
+          <button type="button" class="btn-ghost" onclick="clearTxAdvFilters()">נקה סינונים נוספים</button>
+        </div>
       </div>
       <div class="tx-summary" id="txSummary"></div>
       <div id="txSelectToolbar" class="tx-select-toolbar" style="display:flex;gap:.5rem;align-items:center;margin-bottom:.5rem;flex-wrap:wrap"></div>
@@ -831,27 +849,28 @@
   <button onclick="applyUpdate()">עדכן עכשיו</button>
 </div>
 
-<script>const _v = '1.21.41';</script>
-<script src="app.js?v=1.21.41"></script>
-<script src="core.js?v=1.21.41"></script>
-<script src="ui.js?v=1.21.41"></script>
-<script src="icons.js?v=1.21.41"></script>
-<script src="templates.js?v=1.21.41"></script>
-<script src="autocat.js?v=1.21.41"></script>
-<script src="budget.js?v=1.21.41"></script>
-<script src="budgetGen.js?v=1.21.41"></script>
-<script src="recurring.js?v=1.21.41"></script>
-<script src="dashboard.js?v=1.21.41"></script>
-<script src="transactions.js?v=1.21.41"></script>
-<script src="wizard.js?v=1.21.41"></script>
-<script src="import.js?v=1.21.41"></script>
-<script src="analysis.js?v=1.21.41"></script>
-<script src="settings.js?v=1.21.41"></script>
-<script src="drive.js?v=1.21.41"></script>
-<script src="property.js?v=1.21.41"></script>
-<script src="reports.js?v=1.21.41"></script>
-<script src="feedback.js?v=1.21.41"></script>
-<script src="scrollMirror.js?v=1.21.41"></script>
+<script>const _v = '1.21.42';</script>
+<script src="app.js?v=1.21.42"></script>
+<script src="core.js?v=1.21.42"></script>
+<script src="ui.js?v=1.21.42"></script>
+<script src="icons.js?v=1.21.42"></script>
+<script src="templates.js?v=1.21.42"></script>
+<script src="autocat.js?v=1.21.42"></script>
+<script src="detect.js?v=1.21.42"></script>
+<script src="budget.js?v=1.21.42"></script>
+<script src="budgetGen.js?v=1.21.42"></script>
+<script src="recurring.js?v=1.21.42"></script>
+<script src="dashboard.js?v=1.21.42"></script>
+<script src="transactions.js?v=1.21.42"></script>
+<script src="wizard.js?v=1.21.42"></script>
+<script src="import.js?v=1.21.42"></script>
+<script src="analysis.js?v=1.21.42"></script>
+<script src="settings.js?v=1.21.42"></script>
+<script src="drive.js?v=1.21.42"></script>
+<script src="property.js?v=1.21.42"></script>
+<script src="reports.js?v=1.21.42"></script>
+<script src="feedback.js?v=1.21.42"></script>
+<script src="scrollMirror.js?v=1.21.42"></script>
 
 <!-- SERVICE WORKER REGISTRATION & UPDATE LOGIC -->
 <script>

@@ -1,4 +1,4 @@
-const APP_VERSION = '1.21.41'
+const APP_VERSION = '1.21.42'
 
 // ===== STORAGE =====
 const DB = {
@@ -145,6 +145,7 @@ const DEFAULT_PROMPT = `אתה מנתח דוחות בנק ישראלים. נתח
 - amount: חיובי להכנסה, שלילי להוצאה
 - type: income | expense | transfer | refund
 - vendor: שם נקי ללא מספרים מיותרים
+- description: העתק את שדה "פירוט" / "תיאור" מהקובץ במלואו (כולל ציוני "תשלום X מתוך Y", "הוראת קבע", ושמות נמענים בעסקאות ביט/פייבוקס)
 - אל תכלול יתרות חשבון כעסקאות
 - חיובי כרטיס אשראי מרוכזים (ויזה, מסטרקארד, ישראכרט, כאל, אמקס, דיינרס, לאומי קארד, מקס) – סמן כ-transfer
 - מיין לפי תאריך עולה
@@ -740,6 +741,59 @@ function migrateOrphanedTransfers_v4() {
   if (changed > 0) console.log(`Migration v4: restored ${changed} orphaned transfers to P&L`)
 }
 
+// One-shot enrichment of existing rows. The detectors in detect.js are pure
+// — running them after the fact catches installments, standing orders and
+// bit/paybox payees the user already imported before v1.21.42. Vendor rewrites
+// only happen when the recipient can be extracted from the description, so
+// untouched rows stay as-is. Auto-notes are only prepended when notes is
+// empty, to avoid trampling on user-written notes.
+function migrateDetectFields_v1() {
+  if (localStorage.getItem('migration_detect_fields_v1') === '1') return
+  if (typeof enrichDetectedFields !== 'function') return
+  const txs = getTransactions()
+  let changed = 0
+  for (const t of txs) {
+    const enriched = enrichDetectedFields(t)
+    let touched = false
+    if (enriched.installmentCurrent && enriched.installmentTotal &&
+        (t.installmentCurrent !== enriched.installmentCurrent || t.installmentTotal !== enriched.installmentTotal)) {
+      t.installmentCurrent = enriched.installmentCurrent
+      t.installmentTotal   = enriched.installmentTotal
+      touched = true
+    }
+    if (enriched.standingOrder && !t.standingOrder) {
+      t.standingOrder = true
+      touched = true
+    }
+    // Only rewrite the vendor on migration when the existing one is still the
+    // bare provider name. If the user already typed a custom vendor we leave
+    // it alone — they may have set a name we shouldn't override.
+    if (enriched.detectedProvider && enriched.vendor !== t.vendor) {
+      const cur = String(t.vendor || '').trim().toLowerCase()
+      const looksBare = cur === 'bit' || cur === 'paybox' || cur === 'ביט' || cur === 'פייבוקס' || cur === 'פיי בוקס'
+      if (looksBare) {
+        t.vendor = enriched.vendor
+        t.detectedProvider = enriched.detectedProvider
+        touched = true
+      }
+    }
+    if (t.installmentCurrent && t.installmentTotal && !t.installmentFinalMonth) {
+      const em = (typeof getTxEffectiveMonth === 'function') ? getTxEffectiveMonth(t) : ''
+      const fm = (typeof computeInstallmentFinalMonth === 'function')
+        ? computeInstallmentFinalMonth(em, t.installmentCurrent, t.installmentTotal) : ''
+      if (fm) { t.installmentFinalMonth = fm; touched = true }
+    }
+    if (touched && (!t.notes || t.notes.trim() === '') && typeof buildAutoNotes === 'function') {
+      const n = buildAutoNotes(t)
+      if (n) t.notes = n
+    }
+    if (touched) changed++
+  }
+  if (changed > 0) DB.set('finTransactions', txs)
+  localStorage.setItem('migration_detect_fields_v1', '1')
+  if (changed > 0) console.log(`Migration v1: enriched ${changed} transactions with installments / standing-order / bit-paybox detection`)
+}
+
 // One-shot migration: the v1.21 release moved the recurring narrowing config
 // off its own localStorage key (finRecurringGroupCriteria, briefly used in
 // 1.21.0) and into the existing vendor-alias schema, so the criteria editor
@@ -799,6 +853,7 @@ document.addEventListener('DOMContentLoaded', () => {
   migrateRelinkAutoTransfers_v3()
   migrateOrphanedTransfers_v4()
   migrateRecurringCriteriaToAliases_v1()
+  migrateDetectFields_v1()
   migrateBudgetType_v1()
   migrateBudgetMonthly_v2()
   if (typeof migrateExcludeFromUnforeseen_v1 === 'function') migrateExcludeFromUnforeseen_v1()

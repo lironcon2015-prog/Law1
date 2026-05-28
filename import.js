@@ -298,7 +298,12 @@ function _finalizeParsedTransactions(parsed, accountId) {
   // not a transfer. Users can manually mark a row as transfer in the edit modal,
   // or run "זהה אוטומטית חיובי אשראי" in settings to bulk-link after the fact.
 
-  _parsedTx = parsed.map(t => {
+  _parsedTx = parsed.map(raw => {
+    // Detect installments / standing orders / bit-paybox payees BEFORE
+    // hashing and category matching — enrichment can rewrite the vendor
+    // (bit/paybox → "ביט <recipient>"), which feeds both the autocat
+    // lookup and the dedup hash.
+    const t = (typeof enrichDetectedFields === 'function') ? enrichDetectedFields(raw) : raw
     const catFromName    = matchCategory(t)
     const catFromRules   = catFromName ? '' : matchVendorToCategory(t.vendor, t.description)
     const catFromAutocat = (catFromName || catFromRules) ? '' : suggestFromAutocat(t.vendor)
@@ -306,8 +311,18 @@ function _finalizeParsedTransactions(parsed, accountId) {
     const newMonth = txMonth(t, accountId)
     const isDuplicate = consumeMatch(newMonth, hash, legacyHash)
     const isMaybeDuplicate = !isDuplicate && consumeLooseMatch(newMonth, looseHash)
+    // For installments, derive the final billing month now — the effective
+    // month depends on accountId / billingDay / chargeDate which we have here.
+    let installmentFinalMonth = ''
+    if (t.installmentCurrent && t.installmentTotal && typeof computeInstallmentFinalMonth === 'function') {
+      const em = (typeof getTxEffectiveMonth === 'function')
+        ? getTxEffectiveMonth({ date: t.date, chargeDate: t.chargeDate, accountId })
+        : ''
+      installmentFinalMonth = computeInstallmentFinalMonth(em, t.installmentCurrent, t.installmentTotal)
+    }
     return {
       ...t,
+      _installmentFinalMonth: installmentFinalMonth,
       _categoryId:     catFromName || catFromRules || catFromAutocat,
       _hash:           hash,
       _legacyHash:     legacyHash,
@@ -433,7 +448,17 @@ function saveImport() {
     ...(t.chargeDate ? { chargeDate: t.chargeDate } : {}),
     type:             t.type,
     categoryId:       t._categoryId || '',
-    notes:            '',
+    notes:            (typeof buildAutoNotes === 'function') ? buildAutoNotes({
+                        installmentCurrent: t.installmentCurrent,
+                        installmentTotal:   t.installmentTotal,
+                        installmentFinalMonth: t._installmentFinalMonth,
+                        standingOrder:      t.standingOrder,
+                      }) : '',
+    ...(t.installmentCurrent ? { installmentCurrent: t.installmentCurrent } : {}),
+    ...(t.installmentTotal   ? { installmentTotal:   t.installmentTotal   } : {}),
+    ...(t._installmentFinalMonth ? { installmentFinalMonth: t._installmentFinalMonth } : {}),
+    ...(t.standingOrder ? { standingOrder: true } : {}),
+    ...(t.detectedProvider ? { detectedProvider: t.detectedProvider } : {}),
     sourceHash:       t._hash,
     legacySourceHash: t._legacyHash,
     looseHash:        t._looseHash,

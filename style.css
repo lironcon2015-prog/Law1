@@ -371,11 +371,31 @@ select option { background-color: #141417; color: var(--text-primary); }
 .error-msg { color: var(--expense); font-size: .85rem; margin-top: .5rem; }
 
 /* ===== FILTERS ===== */
-.filters-bar { display: flex; gap: .75rem; margin-bottom: 1rem; flex-wrap: wrap; }
+.filters-bar { display: flex; gap: .75rem; margin-bottom: 1rem; flex-wrap: wrap; align-items: center; }
 .search-wrap { position: relative; flex: 1; min-width: 160px; }
 .search-icon { position: absolute; right: .75rem; top: 50%; transform: translateY(-50%); color: var(--text-muted); pointer-events: none; }
 .search-wrap input { padding-right: 2.25rem; }
 .filters-bar select { width: auto; }
+.tx-adv-toggle { font-size: .85rem; padding: .5rem .85rem; white-space: nowrap; }
+.tx-adv-toggle.has-active { color: var(--accent); border-color: var(--accent); }
+
+.tx-adv-panel {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: .75rem;
+  padding: .9rem 1rem;
+  margin-bottom: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-elevated);
+}
+.tx-adv-group { display: flex; flex-direction: column; gap: .3rem; }
+.tx-adv-group input[type="number"] { width: 100%; }
+.tx-adv-checks { gap: .5rem; justify-content: center; }
+.tx-adv-check { display: flex; align-items: center; gap: .4rem; font-size: .85rem; cursor: pointer; }
+.tx-adv-check input { width: auto; margin: 0; }
+.tx-adv-actions { display: flex; align-items: flex-end; justify-content: flex-end; }
+.tx-adv-actions .btn-ghost { font-size: .8rem; padding: .35rem .7rem; }
 
 /* ===== TX SUMMARY ===== */
 .tx-summary { display: flex; gap: 1.25rem; margin-bottom: .75rem; font-size: .85rem; color: var(--text-muted); flex-wrap: wrap; }
@@ -1067,6 +1087,11 @@ select option { background-color: #141417; color: var(--text-primary); }
 
   /* ---- Filters bar: stack vertically, full-width selects ---- */
   .filters-bar { flex-direction: column; gap: .5rem; }
+  .tx-adv-toggle { width: 100%; }
+  .tx-adv-panel { grid-template-columns: 1fr 1fr; gap: .6rem; padding: .7rem; }
+  .tx-adv-checks { grid-column: 1 / -1; flex-direction: column; align-items: flex-start; }
+  .tx-adv-actions { grid-column: 1 / -1; justify-content: stretch; }
+  .tx-adv-actions .btn-ghost { width: 100%; }
   .filters-bar > * { width: 100%; }
   .search-wrap { min-width: 0; width: 100%; }
   .filters-bar select { width: 100%; }

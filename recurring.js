@@ -692,6 +692,85 @@ function _applyCadenceOverrides(items) {
   return items
 }
 
+// Synthetic recurring entries for active installment plans — surfaces a plan
+// in the recurring screen even before it accumulates the 3 occurrences that
+// auto-detection requires. Skipped when an auto/manual entry already covers
+// the same vendor key (those win and get _attachInstallmentInfo annotation).
+function _getInstallmentRecurring(coveredKeys) {
+  const all = getTransactions().filter(t =>
+    t.installmentCurrent && t.installmentTotal &&
+    !t.recurringGroupId &&
+    !t.recurringExcludeFromAuto &&
+    t.type !== 'transfer'
+  )
+  if (all.length === 0) return []
+  const groups = {}
+  for (const t of all) {
+    const k = _txVendorKey(t)
+    if (!k) continue
+    if (coveredKeys && coveredKeys.has(k)) continue
+    if (!groups[k]) groups[k] = []
+    groups[k].push(t)
+  }
+  const out = []
+  for (const [key, txs] of Object.entries(groups)) {
+    txs.sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+    const latest = txs[0]
+    // Plan already finished — no future charges to forecast.
+    if (latest.installmentCurrent >= latest.installmentTotal) continue
+    const cad = RECURRING_CADENCES.monthly
+    const avg = txs.reduce((s, t) => s + (t.amount || 0), 0) / txs.length
+    out.push({
+      key: 'installment:' + key,
+      sourceKey: key,
+      vendor: resolveVendor(latest.vendor, latest.amount, getTxAliasDay(latest)) || latest.vendor || key,
+      cadence: 'monthly',
+      cadenceLabel: cad.label,
+      cadenceDays: cad.days,
+      avgAmount: avg,
+      smoothedMonthly: avg,
+      lastSeen: latest.date,
+      nextExpected: _addDays(latest.date, cad.days),
+      occurrences: txs.length,
+      accountId: latest.accountId,
+      categoryId: latest.categoryId,
+      source: 'installment',
+      installmentCurrent: latest.installmentCurrent,
+      installmentTotal: latest.installmentTotal,
+      installmentFinalMonth: latest.installmentFinalMonth || '',
+    })
+  }
+  return out
+}
+
+// Installment annotations — looks at the underlying tx for each recurring
+// entry. If any of them carry installmentCurrent/Total, surface the latest
+// (current, total, finalMonth) so the recurring row can show when the plan
+// ends. We pick the most recent installment-carrying tx because that's the
+// "where are we now" position the user expects to see.
+function _attachInstallmentInfo(items) {
+  const all = getTransactions()
+  for (const r of items) {
+    let pool
+    if (typeof r.key === 'string' && r.key.startsWith('mgroup:')) {
+      const gid = r.key.slice('mgroup:'.length)
+      pool = all.filter(t => t.recurringGroupId === gid)
+    } else {
+      const vk = (typeof r.key === 'string' && r.key.startsWith('mflag:'))
+        ? r.key.slice('mflag:'.length) : r.sourceKey || r.key
+      pool = all.filter(t => !t.recurringGroupId && _txVendorKey(t) === vk)
+    }
+    const withInst = pool.filter(t => t.installmentCurrent && t.installmentTotal)
+    if (withInst.length === 0) continue
+    withInst.sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+    const latest = withInst[0]
+    r.installmentCurrent = latest.installmentCurrent
+    r.installmentTotal   = latest.installmentTotal
+    r.installmentFinalMonth = latest.installmentFinalMonth || ''
+  }
+  return items
+}
+
 // Reconciles manual groups first so newly-imported tx with a matching vendor
 // are absorbed before the auto pass sees them.
 function getAllRecurring() {
@@ -702,7 +781,13 @@ function getAllRecurring() {
   const manualGroups = _getManualGroupRecurring()
   const overrideKeys = new Set(manualFlags.map(m => m.sourceKey))
   const autoKept = auto.filter(a => !overrideKeys.has(a.sourceKey))
-  return _applyCadenceOverrides(_applyAmountOverrides([...autoKept, ...manualFlags, ...manualGroups]))
+  const covered = new Set([
+    ...autoKept.map(a => a.sourceKey),
+    ...manualFlags.map(m => m.sourceKey),
+  ])
+  const installments = _getInstallmentRecurring(covered)
+  return _attachInstallmentInfo(
+      _applyCadenceOverrides(_applyAmountOverrides([...autoKept, ...manualFlags, ...manualGroups, ...installments])))
     .sort((a,b) => Math.abs(b.smoothedMonthly) - Math.abs(a.smoothedMonthly))
 }
 
@@ -805,6 +890,19 @@ function renderRecurring() {
       ? '<span class="type-badge type-refund" title="קבוצה ידנית מאוחדת">📦 ידנית</span>'
       : r.source === 'manual-flag'
       ? '<span class="type-badge type-refund" title="סומן ידנית">✋ ידנית</span>'
+      : r.source === 'installment'
+      ? '<span class="type-badge type-transfer" title="עסקת תשלומים שזוהתה מדוח האשראי">💳 תשלומים</span>'
+      : ''
+    // Installment plans appear as recurring once they hit the 3-occurrence
+    // threshold. Surface "where in the plan we are" and the final billing
+    // month so the user can see when the recurring entry will stop counting.
+    const installmentBadge = (r.installmentCurrent && r.installmentTotal)
+      ? (() => {
+          const fm = r.installmentFinalMonth || ''
+          const fmDisp = fm ? (fm.slice(5) + '/' + fm.slice(0,4)) : ''
+          const title = `תשלומים — נכון לתשלום ${r.installmentCurrent} מתוך ${r.installmentTotal}${fmDisp?` · מסתיים ${fmDisp}`:''}`
+          return `<span class="type-badge type-transfer" title="${title}" style="margin-inline-start:.3rem">💳 ${r.installmentCurrent}/${r.installmentTotal}${fmDisp?` · עד ${fmDisp}`:''}</span>`
+        })()
       : ''
     // Smoothed (monthly-equivalent) is the primary number; show the
     // raw per-occurrence amount underneath when the cadence isn't monthly.
@@ -823,7 +921,7 @@ function renderRecurring() {
       : ''
     return `
       <tr class="recurring-row ${isHidden?'recurring-row-hidden':''}" onclick="openRecurringDrillByIdx('${idx}')">
-        <td class="rec-cell-main" style="font-weight:500">${r.vendor} ${sourceBadge}
+        <td class="rec-cell-main" style="font-weight:500">${r.vendor} ${sourceBadge}${installmentBadge}
           <div class="rec-meta-mobile"><span class="type-badge type-income">${r.cadenceLabel}</span><span>הבא: ${formatDate(r.nextExpected)}</span><span>${r.occurrences} מופעים</span></div>
         </td>
         <td class="rec-cell-sec"><span class="type-badge type-income">${r.cadenceLabel}</span></td>
@@ -937,8 +1035,9 @@ function _renderDrillModal() {
     allTx = getTransactions().filter(t => t.recurringGroupId === gid)
     const g = getManualRecurringGroups().find(g => g.id === gid)
     vendor = g?.label || gid
-  } else if (_drillKey.startsWith('mflag:')) {
-    const vk = _drillKey.slice('mflag:'.length)
+  } else if (_drillKey.startsWith('mflag:') || _drillKey.startsWith('installment:')) {
+    const prefix = _drillKey.startsWith('mflag:') ? 'mflag:' : 'installment:'
+    const vk = _drillKey.slice(prefix.length)
     allTx = getTransactions().filter(t =>
       !t.recurringGroupId && _txVendorKey(t) === vk
     )
@@ -1021,7 +1120,11 @@ function _renderDrillModal() {
   // The criteria store IS the vendor alias (settings → "איחוד ספקים"); editing
   // here writes to that same alias, so changes show up in both places.
   const isManualGroup = _drillKey.startsWith('mgroup:')
-  const criteriaKey = _drillKey.startsWith('mflag:') ? _drillKey.slice('mflag:'.length) : _drillKey
+  // Strip the prefix for prefix-tagged keys so criteriaKey is the bare vendor
+  // key (what the alias lookup expects).
+  const criteriaKey = _drillKey.startsWith('mflag:')      ? _drillKey.slice('mflag:'.length)
+                   : _drillKey.startsWith('installment:') ? _drillKey.slice('installment:'.length)
+                   : _drillKey
   const currentAlias = isManualGroup ? null : findAliasForDrillKey(criteriaKey)
   const hasNarrowing = !!(currentAlias && (
     currentAlias.amountMin != null || currentAlias.amountMax != null ||

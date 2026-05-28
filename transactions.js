@@ -28,13 +28,62 @@ function _txViewAmount(t, accountId) {
   return _txIsMirrorFor(t, accountId) ? -t.amount : t.amount
 }
 
+// "Advanced" filter panel — amount range, installment, standing-order — is
+// collapsed by default so the main filters-bar stays uncluttered. We persist
+// the open/closed state per session via a module-level flag (not localStorage)
+// so it resets on reload but survives screen navigation in a single session.
+let _txAdvOpen = false
+
 function renderTransactions() {
   _txPage = 0
   renderPeriodSelector('txPeriodSelector', () => { _txPage = 0; _drawTxTable() })
   _buildTxAccountFilter()
   _buildTxCategoryFilter()
   _buildTxFlowFilter()
+  _syncTxAdvPanelVisibility()
   _drawTxTable()
+}
+
+function _syncTxAdvPanelVisibility() {
+  const panel = document.getElementById('txAdvPanel')
+  const btn   = document.getElementById('txAdvToggleBtn')
+  if (!panel || !btn) return
+  panel.style.display = _txAdvOpen ? 'grid' : 'none'
+  const activeCount = _countActiveAdvFilters()
+  const badge = activeCount > 0 ? ` (${activeCount})` : ''
+  btn.textContent = (_txAdvOpen ? '▲ הסתר אפשרויות סינון' : '▼ אפשרויות סינון נוספות') + badge
+  btn.classList.toggle('has-active', activeCount > 0)
+}
+
+function _countActiveAdvFilters() {
+  const ids = ['txAmountMin', 'txAmountMax']
+  let n = 0
+  for (const id of ids) {
+    const v = document.getElementById(id)?.value
+    if (v !== undefined && v !== null && String(v).trim() !== '') n++
+  }
+  if (document.getElementById('txInstallmentFilter')?.checked) n++
+  if (document.getElementById('txStandingOrderFilter')?.checked) n++
+  return n
+}
+
+function toggleTxAdvFilters() {
+  _txAdvOpen = !_txAdvOpen
+  _syncTxAdvPanelVisibility()
+}
+
+function _onTxAdvChange() {
+  _txPage = 0
+  _syncTxAdvPanelVisibility()
+  _drawTxTable()
+}
+
+function clearTxAdvFilters() {
+  const a = document.getElementById('txAmountMin'); if (a) a.value = ''
+  const b = document.getElementById('txAmountMax'); if (b) b.value = ''
+  const c = document.getElementById('txInstallmentFilter'); if (c) c.checked = false
+  const d = document.getElementById('txStandingOrderFilter'); if (d) d.checked = false
+  _onTxAdvChange()
 }
 
 function _buildTxCategoryFilter() {
@@ -77,6 +126,13 @@ function _getFiltered() {
   const account = document.getElementById('txAccountFilter')?.value || ''
   const category = document.getElementById('txCategoryFilter')?.value || ''
   const flowAcc = document.getElementById('txFlowFilter')?.value || ''
+  // Advanced filters — read raw, validate, fall back to no-op when empty.
+  const amtMinRaw = document.getElementById('txAmountMin')?.value
+  const amtMaxRaw = document.getElementById('txAmountMax')?.value
+  const amtMin = amtMinRaw === '' || amtMinRaw == null ? null : Math.abs(parseFloat(amtMinRaw))
+  const amtMax = amtMaxRaw === '' || amtMaxRaw == null ? null : Math.abs(parseFloat(amtMaxRaw))
+  const onlyInstallments  = !!document.getElementById('txInstallmentFilter')?.checked
+  const onlyStandingOrder = !!document.getElementById('txStandingOrderFilter')?.checked
   const period = getActivePeriod()
   // Treat a tx as uncategorized if it has no categoryId, or if its
   // categoryId points at a category that was deleted.
@@ -112,6 +168,16 @@ function _getFiltered() {
         const hay = ((t.vendor||'') + (t.description||'') + (resolveVendor(t.vendor, t.amount, getTxAliasDay(t))||'')).toLowerCase()
         if (!hay.includes(search)) return false
       }
+      // Amount range compares against the absolute value so the user types
+      // "100..200" once and gets both a 150₪ expense and a 150₪ refund.
+      if (amtMin != null && !isNaN(amtMin)) {
+        if (Math.abs(t.amount || 0) < amtMin) return false
+      }
+      if (amtMax != null && !isNaN(amtMax)) {
+        if (Math.abs(t.amount || 0) > amtMax) return false
+      }
+      if (onlyInstallments && !(t.installmentCurrent && t.installmentTotal)) return false
+      if (onlyStandingOrder && !t.standingOrder) return false
       return true
     })
     .sort((a,b) => (b.date||'').localeCompare(a.date||''))
@@ -252,6 +318,17 @@ function _drawTxTable() {
           const recurringFlagBadge = tx.recurringFlag
             ? `<span class="type-badge type-refund" title="מסומן כקבוע (${recurringCadenceLabel(tx.recurringFlag)})" style="margin-inline-start:.3rem">🔁 ${recurringCadenceLabel(tx.recurringFlag)}</span>`
             : ''
+          const installmentBadge = (tx.installmentCurrent && tx.installmentTotal)
+            ? (() => {
+                const fm = tx.installmentFinalMonth || ''
+                const fmDisp = fm ? (fm.slice(5) + '/' + fm.slice(0,4)) : ''
+                const title = `תשלום ${tx.installmentCurrent} מתוך ${tx.installmentTotal}${fmDisp?` · חודש חיוב אחרון ${fmDisp}`:''}`
+                return `<span class="type-badge type-transfer" title="${title}" style="margin-inline-start:.3rem">💳 ${tx.installmentCurrent}/${tx.installmentTotal}</span>`
+              })()
+            : ''
+          const standingOrderBadge = tx.standingOrder
+            ? `<span class="type-badge type-income" title="הוראת קבע" style="margin-inline-start:.3rem">📌 ה.ק.</span>`
+            : ''
           const groupBadge = tx.recurringGroupId && typeof getManualRecurringGroups === 'function'
             ? (() => {
                 const grp = getManualRecurringGroups().find(g => g.id === tx.recurringGroupId)
@@ -285,7 +362,7 @@ function _drawTxTable() {
               <div class="tx-vendor-cell">
                 <div class="tx-avatar" style="background:${avatarBg}">${avatarIcon}</div>
                 <div>
-                  <div class="tx-vendor-name">${vendorName}${recurringFlagBadge}${groupBadge}</div>
+                  <div class="tx-vendor-name">${vendorName}${recurringFlagBadge}${installmentBadge}${standingOrderBadge}${groupBadge}</div>
                   ${catLabel}${descLine}${refundLine}
                   <div class="tx-meta-mobile">${formatDate(tx.date)} · ${typeBadge}</div>
                 </div>
