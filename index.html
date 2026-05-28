@@ -2,7 +2,7 @@
 <html lang="he" dir="rtl">
 <head>
   <meta charset="UTF-8">
-  <!-- v1.21.46 -->
+  <!-- v1.21.47 -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -356,6 +356,7 @@
       <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
         <span id="appVersion" style="font-size:.75rem;color:var(--text-muted)"></span>
         <button class="btn-ghost" id="updateCheckBtn" onclick="checkForUpdate()" style="padding:.35rem .75rem;font-size:.8rem">🔄 בדוק עדכון</button>
+        <button class="btn-ghost" onclick="forceResetAppCache()" style="padding:.35rem .75rem;font-size:.8rem" title="נקה את מטמון השירות (Service Worker + caches) וטען מחדש. שימושי כשהעדכון תקוע במובייל.">🧹 אפס מטמון</button>
         <span id="updateCheckMsg" style="font-size:.8rem"></span>
       </div>
     </div>
@@ -865,28 +866,28 @@
   <button onclick="applyUpdate()">עדכן עכשיו</button>
 </div>
 
-<script>const _v = '1.21.46';</script>
-<script src="app.js?v=1.21.46"></script>
-<script src="core.js?v=1.21.46"></script>
-<script src="ui.js?v=1.21.46"></script>
-<script src="icons.js?v=1.21.46"></script>
-<script src="templates.js?v=1.21.46"></script>
-<script src="autocat.js?v=1.21.46"></script>
-<script src="detect.js?v=1.21.46"></script>
-<script src="budget.js?v=1.21.46"></script>
-<script src="budgetGen.js?v=1.21.46"></script>
-<script src="recurring.js?v=1.21.46"></script>
-<script src="dashboard.js?v=1.21.46"></script>
-<script src="transactions.js?v=1.21.46"></script>
-<script src="wizard.js?v=1.21.46"></script>
-<script src="import.js?v=1.21.46"></script>
-<script src="analysis.js?v=1.21.46"></script>
-<script src="settings.js?v=1.21.46"></script>
-<script src="drive.js?v=1.21.46"></script>
-<script src="property.js?v=1.21.46"></script>
-<script src="reports.js?v=1.21.46"></script>
-<script src="feedback.js?v=1.21.46"></script>
-<script src="scrollMirror.js?v=1.21.46"></script>
+<script>const _v = '1.21.47';</script>
+<script src="app.js?v=1.21.47"></script>
+<script src="core.js?v=1.21.47"></script>
+<script src="ui.js?v=1.21.47"></script>
+<script src="icons.js?v=1.21.47"></script>
+<script src="templates.js?v=1.21.47"></script>
+<script src="autocat.js?v=1.21.47"></script>
+<script src="detect.js?v=1.21.47"></script>
+<script src="budget.js?v=1.21.47"></script>
+<script src="budgetGen.js?v=1.21.47"></script>
+<script src="recurring.js?v=1.21.47"></script>
+<script src="dashboard.js?v=1.21.47"></script>
+<script src="transactions.js?v=1.21.47"></script>
+<script src="wizard.js?v=1.21.47"></script>
+<script src="import.js?v=1.21.47"></script>
+<script src="analysis.js?v=1.21.47"></script>
+<script src="settings.js?v=1.21.47"></script>
+<script src="drive.js?v=1.21.47"></script>
+<script src="property.js?v=1.21.47"></script>
+<script src="reports.js?v=1.21.47"></script>
+<script src="feedback.js?v=1.21.47"></script>
+<script src="scrollMirror.js?v=1.21.47"></script>
 
 <!-- SERVICE WORKER REGISTRATION & UPDATE LOGIC -->
 <script>
@@ -916,10 +917,43 @@
   }
   function applyUpdate() {
     sessionStorage.setItem('_swJustUpdated', String(Date.now()));
-    const waiting = _swReg && _swReg.waiting;
-    if (!waiting) { window.location.reload(); return; }
     _reloadOnControllerChange = true;
-    waiting.postMessage('SKIP_WAITING');
+    const waiting = _swReg && _swReg.waiting;
+    if (waiting) {
+      waiting.postMessage('SKIP_WAITING');
+      return;
+    }
+    // No waiting worker — either because the new SW called skipWaiting() in
+    // `install` and went straight to active, or because there's no new SW yet.
+    // If one is installing, message it to skip waiting once installed; either
+    // way fall back to a plain reload after a grace period so the user isn't
+    // left hanging.
+    const installing = _swReg && _swReg.installing;
+    if (installing) {
+      installing.addEventListener('statechange', () => {
+        if (installing.state === 'installed') installing.postMessage('SKIP_WAITING');
+      });
+    }
+    setTimeout(() => window.location.reload(), 2500);
+  }
+
+  // Nuclear option for stuck mobile installs: unregister every SW, drop every
+  // cache, then hard-reload. Wired to the "אפס מטמון" button in settings.
+  async function forceResetAppCache() {
+    if (!confirm('פעולה זו תנקה את כל המטמון של האפליקציה ותטען מחדש. אין השפעה על הנתונים השמורים. להמשיך?')) return
+    try {
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations()
+        await Promise.all(regs.map(r => r.unregister()))
+      }
+      if (typeof caches !== 'undefined') {
+        const keys = await caches.keys()
+        await Promise.all(keys.map(k => caches.delete(k)))
+      }
+    } catch (e) { console.error('forceResetAppCache failed:', e) }
+    // Cache-bust the reload URL so the browser HTTP cache can't hand back stale HTML.
+    const sep = location.href.includes('?') ? '&' : '?'
+    location.replace(location.href.split('#')[0] + sep + '_reset=' + Date.now())
   }
   function _watchWorker(worker) {
     if (!worker || _watchedWorkers.has(worker)) return;
@@ -933,7 +967,12 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js?v=' + _v).then(reg => {
+      // updateViaCache: 'none' forces the browser to bypass the HTTP cache when
+      // fetching sw.js — without this iOS Safari (and Chrome on Android with
+      // long max-age) can serve the old SW script indefinitely, so reg.update()
+      // sees no change and APP_VERSION stays stuck on whatever the PWA last
+      // installed.
+      navigator.serviceWorker.register('./sw.js?v=' + _v, { updateViaCache: 'none' }).then(reg => {
         _swReg = reg;
         if (reg.waiting && navigator.serviceWorker.controller) _showUpdateToast();
         _watchWorker(reg.installing);
@@ -942,6 +981,12 @@
       });
       navigator.serviceWorker.addEventListener('controllerchange', () => {
         if (_reloadOnControllerChange) window.location.reload();
+      });
+      // Re-check for updates whenever the user returns to the tab (or to the
+      // PWA on mobile). Otherwise an open-but-backgrounded PWA can sit on an
+      // old version for days even though a fresh build is on the server.
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && _swReg) _swReg.update().catch(() => {});
       });
     });
   }
