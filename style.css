@@ -1048,7 +1048,12 @@ select option { background-color: #141417; color: var(--text-primary); }
   /* ---- Bento grid collapses to single column ---- */
   .bento-outer { grid-template-columns: 1fr; }
   .bento-right { grid-template-columns: 1fr 1fr; }
-  .bento-hero { min-height: 160px; padding: 1.25rem 1.5rem; gap: .45rem; }
+  .bento-hero {
+    min-height: 160px; padding: 1.25rem 1.5rem; gap: .45rem;
+    /* The eyebrow stays absolute in the corner — center the rest so the
+       amount + trend + sub line up on the card's vertical axis. */
+    align-items: center; text-align: center;
+  }
   .bento-hero-eyebrow { top: 1.25rem; right: 1.5rem; }
   .bento-hero-amount { font-size: 2rem; }
 

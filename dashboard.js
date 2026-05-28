@@ -51,16 +51,18 @@ function renderDashboard() {
       })
     }
   }
-  // Hero = net; rest go in the bento right column
+  // Hero = net; rest go in the bento right column. Color alone signals sign —
+  // no manual "+" prefix (positive=green is enough); Intl.NumberFormat already
+  // places "-" to the left of the digits for negatives, matching the other
+  // bento cards (hidden-savings, recurring) which use formatCurrency directly.
   const heroCard = cards[2] || cards[0]
   const otherCards = cards.filter(c => c !== heroCard)
   const trendPos = heroCard.value >= 0
-  const sign = heroCard.value > 0 ? '+' : ''
   document.getElementById('dashStats').innerHTML = `
     <div class="bento-outer">
       <div class="bento-hero">
         <div class="bento-hero-eyebrow">נטו התקופה</div>
-        <div class="bento-hero-amount" style="color:${heroCard.color}">${sign}${formatCurrency(heroCard.value)}</div>
+        <div class="bento-hero-amount" style="color:${heroCard.color}">${formatCurrency(heroCard.value)}</div>
         <div class="bento-hero-trend" style="background:${trendPos?'rgba(16,185,129,.14)':'rgba(244,63,94,.14)'};color:${heroCard.color}">
           ${trendPos?'▲':'▼'} ${trendPos?'תזרים חיובי':'תזרים שלילי'}
         </div>
