@@ -1,9 +1,12 @@
-const APP_VERSION = '1.21.40'
+const APP_VERSION = '1.21.41'
 
 // ===== STORAGE =====
 const DB = {
   get: (key, def = []) => { try { return JSON.parse(localStorage.getItem(key)) ?? def } catch { return def } },
-  set: (key, val) => localStorage.setItem(key, JSON.stringify(val)),
+  set: (key, val) => {
+    localStorage.setItem(key, JSON.stringify(val))
+    if (typeof _onBackupKeyWrite === 'function') _onBackupKeyWrite(key)
+  },
   getObj: (key, def = {}) => { try { return JSON.parse(localStorage.getItem(key)) ?? def } catch { return def } },
 }
 

@@ -659,6 +659,18 @@ select option { background-color: #141417; color: var(--text-primary); }
 .parse-summary-badge { padding: .15rem .6rem; background: var(--accent); color: white; border-radius: .4rem; font-size: .75rem; font-weight: 600; }
 .parse-summary-badge.parse-summary-ai { background: var(--warn, #f59e0b); }
 
+/* ===== Drive sync status badge ===== */
+.sync-status {
+  display: none; align-items: center; gap: .25rem;
+  font-size: .68rem; font-weight: 500;
+  padding: .15rem .55rem; border-radius: var(--r-pill, 999px);
+  margin-inline-start: .55rem; white-space: nowrap;
+}
+.sync-status.sync-ok      { background: var(--income-bg); color: var(--income); }
+.sync-status.sync-syncing { background: var(--accent-dim); color: var(--accent); }
+.sync-status.sync-warn    { background: rgba(245,158,11,.15); color: #fbbf24; cursor: pointer; }
+.sync-status.sync-err     { background: var(--expense-bg); color: var(--expense); }
+
 /* ===== Toast stack (ui.js) ===== */
 .toast-stack {
   position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%);

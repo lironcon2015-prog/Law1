@@ -5,6 +5,7 @@ const DRIVE_FILE_NAME = 'finance-app-backup.json'
 let _pendingDriveAction = null
 let _driveToken = null
 let _driveTokenClient = null
+let _silentSignInResolve = null
 
 function _initDriveClient() {
   if (_driveTokenClient) return
@@ -13,11 +14,16 @@ function _initDriveClient() {
     scope: DRIVE_SCOPE,
     callback: resp => {
       if (resp.error) {
+        if (_silentSignInResolve) { _silentSignInResolve(false); _silentSignInResolve = null; return }
         _showDriveStatus('שגיאת התחברות: ' + resp.error, true)
         return
       }
       _driveToken = resp.access_token
       _renderDriveUI()
+      localStorage.setItem('driveAutoSync', '1')
+
+      // Silent path → just resolve; the caller drives the next step.
+      if (_silentSignInResolve) { _silentSignInResolve(true); _silentSignInResolve = null; return }
 
       if (_pendingDriveAction === 'backup') {
         _pendingDriveAction = null
@@ -25,6 +31,10 @@ function _initDriveClient() {
       } else if (_pendingDriveAction === 'restore') {
         _pendingDriveAction = null
         driveRestore()
+      } else {
+        // Manual interactive sign-in → start auto-sync (pull now, idle after).
+        _setSyncStatus('syncing')
+        _driveAutoPull().then(() => _setSyncStatus('idle')).catch(() => _setSyncStatus('error'))
       }
     },
   })
@@ -38,6 +48,8 @@ function driveSignIn() {
 function driveSignOut() {
   if (_driveToken) google.accounts.oauth2.revoke(_driveToken)
   _driveToken = null
+  localStorage.removeItem('driveAutoSync')
+  _setSyncStatus('off')
   _renderDriveUI()
 }
 
@@ -183,3 +195,164 @@ function _showDriveStatus(msg, isErr) {
   el.style.color = isErr ? 'var(--expense)' : '#4ade80'
   if (!isErr) setTimeout(() => { if (el.textContent === msg) el.textContent = '' }, 4000)
 }
+
+// ===== AUTO-SYNC =====
+// Once the user signs in once, the app stays connected: every page load
+// silently re-obtains a token (via GIS prompt:''), pulls Drive if it's
+// newer than our last pull, and every write to a backup key schedules a
+// debounced upload. On a push conflict (Drive moved since the last pull) we
+// ask the user — never silently overwrite their other-device work.
+const _DRIVE_BACKUP_KEYS = new Set([
+  'finTransactions','finAccounts','finCategories','finBudgets','finCategoryRules',
+  'finImportTemplates','finVendorAliases','finManualRecurringGroups','finRecurringHidden',
+  'finRecurringIgnoreOutliers','finRecurringAmountOverride','finRecurringCadenceOverride',
+  'finHiddenTopVendors','finProperty','finPropertyPayments','finPropertyManualMortgage','finFeedback',
+])
+let _driveDebounceTimer = null
+let _drivePushing = false
+let _driveDirty = false
+let _driveSuppressPush = false  // true while restoring from Drive — don't bounce writes back
+
+function driveAutoSyncEnabled() { return localStorage.getItem('driveAutoSync') === '1' }
+
+function _setSyncStatus(s) {
+  const map = {
+    'off':        { txt: '',                  cls: '',              title: '' },
+    'signed-out': { txt: '🔌 חיבור ל-Drive',   cls: 'sync-warn',     title: 'סנכרון פעיל אך לא מחובר — לחץ להתחבר' },
+    'idle':       { txt: '✓ מסונכרן',          cls: 'sync-ok',       title: 'הנתונים מסונכרנים ל-Drive' },
+    'syncing':    { txt: '↻ מסנכרן…',         cls: 'sync-syncing',  title: '' },
+    'offline':    { txt: '📴 לא מקוון',        cls: 'sync-warn',     title: 'אין חיבור — נסנכרן כשיחזור' },
+    'error':      { txt: '⚠ שגיאת סנכרון',    cls: 'sync-err',      title: '' },
+  }
+  const m = map[s] || map.off
+  document.querySelectorAll('.sync-status').forEach(el => {
+    el.className = 'sync-status ' + m.cls
+    el.textContent = m.txt
+    el.title = m.title
+    el.style.display = m.txt ? 'inline-flex' : 'none'
+    el.onclick = (s === 'signed-out') ? () => driveSignIn() : null
+  })
+}
+
+function _silentDriveSignIn() {
+  return new Promise(resolve => {
+    if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) return resolve(false)
+    _initDriveClient()
+    _silentSignInResolve = resolve
+    try { _driveTokenClient.requestAccessToken({ prompt: '' }) }
+    catch { _silentSignInResolve = null; resolve(false) }
+    setTimeout(() => { if (_silentSignInResolve) { _silentSignInResolve(false); _silentSignInResolve = null } }, 5000)
+  })
+}
+
+async function _driveAutoPull() {
+  const file = await _driveFindFile()
+  if (!file) return
+  const lastPullAt = localStorage.getItem('driveLastPullAt') || ''
+  if (lastPullAt && file.modifiedTime <= lastPullAt) return
+  const r = await _driveReq('GET', `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`)
+  if (!r.ok) throw new Error(await r.text())
+  const data = await r.json()
+  const isValid = data && typeof data === 'object' && !Array.isArray(data) &&
+    (Array.isArray(data.transactions) || Array.isArray(data.accounts) || Array.isArray(data.categories))
+  if (!isValid) return
+  _driveSuppressPush = true
+  try { applyBackupData(data) } finally { _driveSuppressPush = false }
+  _driveDirty = false
+  if (_driveDebounceTimer) { clearTimeout(_driveDebounceTimer); _driveDebounceTimer = null }
+  localStorage.setItem('driveBackupFileId', file.id)
+  localStorage.setItem('driveBackupAt', file.modifiedTime)
+  localStorage.setItem('driveLastPullAt', file.modifiedTime)
+  // Reflect restored data on screen.
+  const cur = (typeof _currentScreen !== 'undefined' && _currentScreen) || 'dashboard'
+  if (typeof navigate === 'function') navigate(cur)
+}
+
+// Hook called from DB.set — schedules a debounced push when the changed key
+// is part of the backup payload and we're connected.
+function _onBackupKeyWrite(key) {
+  if (_driveSuppressPush) return
+  if (!_DRIVE_BACKUP_KEYS.has(key)) return
+  if (!driveAutoSyncEnabled() || !_driveToken) return
+  _driveDirty = true
+  if (_driveDebounceTimer) clearTimeout(_driveDebounceTimer)
+  _driveDebounceTimer = setTimeout(_drivePush, 5000)
+}
+
+async function _drivePush() {
+  if (_drivePushing) return
+  if (!navigator.onLine) { _setSyncStatus('offline'); return }
+  if (!_driveToken) { _setSyncStatus('signed-out'); return }
+  _drivePushing = true
+  _setSyncStatus('syncing')
+  try {
+    const file = await _driveFindFile()
+    if (file) {
+      const lastPullAt = localStorage.getItem('driveLastPullAt') || ''
+      if (lastPullAt && file.modifiedTime > lastPullAt) {
+        // Conflict: remote moved since our last pull. Ask the user.
+        const pullRemote = await confirmDialog(
+          'מכשיר אחר עידכן את ה-Drive מאז הסנכרון האחרון.\nלמשוך את הענן (תאבד שינויים מקומיים שטרם הועלו)?\nאם תבטל — נדרוס את הענן עם המקומי.',
+          { confirmText: 'משוך מהענן', cancelText: 'דרוס לענן' }
+        )
+        if (pullRemote) {
+          const r = await _driveReq('GET', `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`)
+          const data = await r.json()
+          _driveSuppressPush = true
+          try { applyBackupData(data) } finally { _driveSuppressPush = false }
+          localStorage.setItem('driveLastPullAt', file.modifiedTime)
+          localStorage.setItem('driveBackupAt', file.modifiedTime)
+          _driveDirty = false
+          _drivePushing = false
+          _setSyncStatus('idle')
+          const cur = (typeof _currentScreen !== 'undefined' && _currentScreen) || 'dashboard'
+          if (typeof navigate === 'function') navigate(cur)
+          return
+        }
+        // else: fall through to overwrite the remote with local.
+      }
+    }
+    const payload = JSON.stringify(collectBackupData(), null, 2)
+    let fileResult
+    if (file) {
+      const r = await _driveReq('PATCH', `https://www.googleapis.com/upload/drive/v3/files/${file.id}?uploadType=media&fields=id,modifiedTime`, payload, 'application/json')
+      if (!r.ok) throw new Error(await r.text())
+      fileResult = await r.json()
+    } else {
+      const boundary = 'b' + Math.random().toString(16).slice(2)
+      const meta = JSON.stringify({ name: DRIVE_FILE_NAME, mimeType: 'application/json' })
+      const body = `--${boundary}\r\nContent-Type: application/json\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${payload}\r\n--${boundary}--`
+      const r = await _driveReq('POST', `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,modifiedTime`, body, `multipart/related; boundary=${boundary}`)
+      if (!r.ok) throw new Error(await r.text())
+      fileResult = await r.json()
+    }
+    localStorage.setItem('driveBackupFileId', fileResult.id)
+    localStorage.setItem('driveBackupAt', fileResult.modifiedTime)
+    localStorage.setItem('driveLastPullAt', fileResult.modifiedTime)
+    localStorage.setItem('driveLastUploadAt', new Date().toISOString())
+    _driveDirty = false
+    _setSyncStatus('idle')
+    _updateDriveLastInfo()
+  } catch (e) {
+    console.error('drive auto-push failed:', e)
+    _setSyncStatus('error')
+  } finally {
+    _drivePushing = false
+  }
+}
+
+async function driveAutoSyncInit() {
+  if (!driveAutoSyncEnabled()) { _setSyncStatus('off'); return }
+  _setSyncStatus('signed-out')
+  // Wait briefly for the GIS script to load (it's async).
+  for (let i = 0; i < 50 && (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2); i++) {
+    await new Promise(r => setTimeout(r, 100))
+  }
+  const ok = await _silentDriveSignIn()
+  if (!ok) { _setSyncStatus('signed-out'); return }
+  _setSyncStatus('syncing')
+  try { await _driveAutoPull(); _setSyncStatus('idle') } catch { _setSyncStatus('error') }
+  window.addEventListener('online', () => { if (_driveDirty) _drivePush() })
+  window.addEventListener('offline', () => _setSyncStatus('offline'))
+}
+document.addEventListener('DOMContentLoaded', () => { driveAutoSyncInit() })
