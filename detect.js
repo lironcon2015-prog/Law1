@@ -114,16 +114,35 @@ function enrichDetectedFields(t) {
   return out
 }
 
-// Given a tx with installment metadata, compute the YYYY-MM of the last
-// charge. effectiveMonth comes from getTxEffectiveMonth (CC billing-cycle aware).
-function computeInstallmentFinalMonth(effectiveMonth, current, total) {
-  if (!effectiveMonth || !current || !total || total < current) return ''
-  const [y, m] = effectiveMonth.split('-').map(Number)
-  if (!y || !m) return ''
-  const remaining = total - current
-  let ny = y, nm = m + remaining
-  while (nm > 12) { nm -= 12; ny += 1 }
-  return `${ny}-${String(nm).padStart(2, '0')}`
+// Compute the YYYY-MM of the LAST installment charge.
+// Israeli CC convention: first installment is the bill cycle AFTER the
+// purchase month, so `finalMonth = purchaseMonth + total`. This formula is
+// stable regardless of which specific installment line we're looking at —
+// every installment of the same plan should produce the same final month.
+// Falls back gracefully when the second arg is omitted: the legacy 3-arg
+// signature (effectiveMonth, current, total) treated `effectiveMonth` as
+// the current bill cycle and added `total - current`; we replicate that
+// behaviour so older migrations don't change behaviour mid-flight.
+function computeInstallmentFinalMonth(purchaseDateOrEffectiveMonth, totalOrCurrent, totalLegacy) {
+  if (!purchaseDateOrEffectiveMonth) return ''
+  const m = String(purchaseDateOrEffectiveMonth).match(/^(\d{4})-(\d{2})/)
+  if (!m) return ''
+  let y = parseInt(m[1], 10), mo = parseInt(m[2], 10)
+  let monthsAhead
+  if (totalLegacy == null) {
+    // New 2-arg form: (purchaseDate, total). Final = purchase + total.
+    const total = totalOrCurrent
+    if (!total || total < 1) return ''
+    monthsAhead = total
+  } else {
+    // Legacy 3-arg form kept for migration code paths that already shipped.
+    const current = totalOrCurrent, total = totalLegacy
+    if (!current || !total || total < current) return ''
+    monthsAhead = total - current
+  }
+  mo += monthsAhead
+  while (mo > 12) { mo -= 12; y += 1 }
+  return `${y}-${String(mo).padStart(2, '0')}`
 }
 
 // Some CC bills print the installment's ORIGINAL purchase date instead of
@@ -154,25 +173,46 @@ function remapInstallmentDateToBillCycle(origIsoDate, billingMonth, billingDay) 
   return `${ty}-${String(tm).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 }
 
-// Auto-note builder — assembles the human-readable line we drop into tx.notes
-// when the user hasn't typed anything there yet. Keeps things in Hebrew, in
-// the same word order the user expected ("תשלום X מתוך Y · ...").
-function buildAutoNotes(t) {
-  const parts = []
-  if (t.installmentCurrent && t.installmentTotal) {
-    parts.push(`תשלום ${t.installmentCurrent} מתוך ${t.installmentTotal}`)
-    if (t.installmentFinalMonth) {
-      const [y, m] = t.installmentFinalMonth.split('-')
-      if (y && m) parts.push(`חודש חיוב אחרון: ${m}/${y}`)
+// Bill cycle of installment N (Israeli convention "first = purchase + 1"):
+// purchaseMonth + N. Returns 'YYYY-MM' (no day component).
+function installmentBillCycleMonth(purchaseDate, installmentCurrent) {
+  if (!purchaseDate || !installmentCurrent) return ''
+  const m = String(purchaseDate).match(/^(\d{4})-(\d{2})/)
+  if (!m) return ''
+  let y = parseInt(m[1], 10), mo = parseInt(m[2], 10) + installmentCurrent
+  while (mo > 12) { mo -= 12; y += 1 }
+  return `${y}-${String(mo).padStart(2, '0')}`
+}
+
+// Notes rebuilder — splits the current notes by " · ", strips any of OUR
+// auto-clauses and re-emits them from the current field values, while
+// preserving anything the user wrote themselves. Idempotent.
+function rebuildAutoNotes(existingNotes, fields) {
+  const segments = String(existingNotes || '').split(/\s*·\s*/).map(s => s.trim()).filter(Boolean)
+  const isAuto = s =>
+    /^תשלום\s+\d+\s+מתוך\s+\d+$/.test(s) ||
+    /^חודש\s+חיוב\s+אחרון:/.test(s) ||
+    /^תאריך\s+עסקה\s+מקורי:/.test(s) ||
+    s === 'הוראת קבע'
+  const userParts = segments.filter(s => !isAuto(s))
+  const autoParts = []
+  if (fields.installmentCurrent && fields.installmentTotal) {
+    autoParts.push(`תשלום ${fields.installmentCurrent} מתוך ${fields.installmentTotal}`)
+    if (fields.installmentFinalMonth) {
+      const m = String(fields.installmentFinalMonth).match(/^(\d{4})-(\d{2})$/)
+      if (m) autoParts.push(`חודש חיוב אחרון: ${m[2]}/${m[1]}`)
     }
   }
-  // Surface the historical purchase date when we remapped the tx into a
-  // newer cycle — keeps the original date discoverable without distorting
-  // the bill-cycle ordering.
-  if (t.originalDate) {
-    const m = String(t.originalDate).match(/^(\d{4})-(\d{2})-(\d{2})$/)
-    if (m) parts.push(`תאריך עסקה מקורי: ${m[3]}/${m[2]}/${m[1]}`)
+  if (fields.originalDate) {
+    const m = String(fields.originalDate).match(/^(\d{4})-(\d{2})-(\d{2})$/)
+    if (m) autoParts.push(`תאריך עסקה מקורי: ${m[3]}/${m[2]}/${m[1]}`)
   }
-  if (t.standingOrder) parts.push('הוראת קבע')
-  return parts.join(' · ')
+  if (fields.standingOrder) autoParts.push('הוראת קבע')
+  return [...autoParts, ...userParts].join(' · ')
+}
+
+// Convenience wrapper for the new-import code path — same shape as the
+// previous buildAutoNotes(fields) helper, just routed through the rebuilder.
+function buildAutoNotes(t) {
+  return rebuildAutoNotes('', t)
 }

@@ -1,4 +1,4 @@
-const APP_VERSION = '1.21.43'
+const APP_VERSION = '1.21.44'
 
 // ===== STORAGE =====
 const DB = {
@@ -844,6 +844,67 @@ function migrateInstallmentDates_v1() {
   if (changed > 0) console.log(`Migration v1: remapped ${changed} installment txs into their bill cycles`)
 }
 
+// Second-pass repair for installment txs after v1.21.43 shipped: the v1
+// migration above only remapped txs that had a chargeDate AND whose chargeDate
+// drove the effective month different from the date alone. Installments that
+// were imported before the inferredChargeDate logic existed still had
+// chargeDate=null and date=<original purchase>, so v1 silently skipped them.
+// v1 also computed installmentFinalMonth as `effectiveMonth + (total-current)`,
+// which was wrong whenever effectiveMonth came from the original purchase date.
+//
+// v2 rewrites BOTH the per-tx date AND installmentFinalMonth using the
+// purchaseDate-driven formula (`first cycle = purchaseMonth + 1`,
+// `final = purchaseMonth + total`). Notes are rebuilt segment-by-segment so
+// user-added text in notes is preserved.
+function migrateInstallmentDates_v2() {
+  if (localStorage.getItem('migration_installment_dates_v2') === '1') return
+  if (typeof installmentBillCycleMonth !== 'function') return
+  if (typeof remapInstallmentDateToBillCycle !== 'function') return
+  if (typeof computeInstallmentFinalMonth !== 'function') return
+  if (typeof rebuildAutoNotes !== 'function') return
+  const txs = getTransactions()
+  const accs = getAccounts()
+  const accById = Object.fromEntries(accs.map(a => [a.id, a]))
+  let changed = 0
+  for (const t of txs) {
+    if (!t.installmentCurrent || !t.installmentTotal) continue
+    const purchaseDate = t.originalTransactionDate || t.date
+    if (!purchaseDate) continue
+    const cycleMonth = installmentBillCycleMonth(purchaseDate, t.installmentCurrent)
+    if (!cycleMonth) continue
+    const acc = accById[t.accountId]
+    const billingDay = (acc && acc.billingDay) || 10
+    const expDate = remapInstallmentDateToBillCycle(purchaseDate, cycleMonth, billingDay)
+    const expFinal = computeInstallmentFinalMonth(purchaseDate, t.installmentTotal)
+    let touched = false
+    if (expFinal && t.installmentFinalMonth !== expFinal) {
+      t.installmentFinalMonth = expFinal
+      touched = true
+    }
+    if (expDate && t.date !== expDate) {
+      if (!t.originalTransactionDate) t.originalTransactionDate = purchaseDate
+      t.date = expDate
+      // The new date encodes the right cycle (with billingDay rollover) so
+      // a stale chargeDate would only confuse things — drop it.
+      delete t.chargeDate
+      touched = true
+    }
+    if (touched) {
+      t.notes = rebuildAutoNotes(t.notes, {
+        installmentCurrent: t.installmentCurrent,
+        installmentTotal: t.installmentTotal,
+        installmentFinalMonth: t.installmentFinalMonth,
+        originalDate: t.originalTransactionDate,
+        standingOrder: t.standingOrder,
+      })
+      changed++
+    }
+  }
+  if (changed > 0) DB.set('finTransactions', txs)
+  localStorage.setItem('migration_installment_dates_v2', '1')
+  if (changed > 0) console.log(`Migration v2: recomputed ${changed} installment txs (date + finalMonth + notes)`)
+}
+
 // One-shot migration: the v1.21 release moved the recurring narrowing config
 // off its own localStorage key (finRecurringGroupCriteria, briefly used in
 // 1.21.0) and into the existing vendor-alias schema, so the criteria editor
@@ -905,6 +966,7 @@ document.addEventListener('DOMContentLoaded', () => {
   migrateRecurringCriteriaToAliases_v1()
   migrateDetectFields_v1()
   migrateInstallmentDates_v1()
+  migrateInstallmentDates_v2()
   migrateBudgetType_v1()
   migrateBudgetMonthly_v2()
   if (typeof migrateExcludeFromUnforeseen_v1 === 'function') migrateExcludeFromUnforeseen_v1()

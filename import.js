@@ -346,14 +346,15 @@ function _finalizeParsedTransactions(parsed, accountId) {
     const newMonth = txMonth(t, accountId)
     const isDuplicate = consumeMatch(newMonth, hash, legacyHash)
     const isMaybeDuplicate = !isDuplicate && consumeLooseMatch(newMonth, looseHash)
-    // For installments, derive the final billing month now — the effective
-    // month depends on accountId / billingDay / chargeDate which we have here.
+    // For installments, derive the final billing month from the original
+    // purchase date — final = purchaseMonth + total (Israeli convention).
+    // This stays correct regardless of which specific installment line we're
+    // looking at, and survives accounts where billingDay doesn't match the
+    // issuer's "first installment = next month" rule.
     let installmentFinalMonth = ''
     if (t.installmentCurrent && t.installmentTotal && typeof computeInstallmentFinalMonth === 'function') {
-      const em = (typeof getTxEffectiveMonth === 'function')
-        ? getTxEffectiveMonth({ date: t.date, chargeDate: t.chargeDate, accountId })
-        : ''
-      installmentFinalMonth = computeInstallmentFinalMonth(em, t.installmentCurrent, t.installmentTotal)
+      const purchaseDate = t._originalDate || t.date
+      installmentFinalMonth = computeInstallmentFinalMonth(purchaseDate, t.installmentTotal)
     }
     return {
       ...t,
