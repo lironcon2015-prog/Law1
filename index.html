@@ -2,7 +2,7 @@
 <html lang="he" dir="rtl">
 <head>
   <meta charset="UTF-8">
-  <!-- v1.21.47 -->
+  <!-- v1.21.48 -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -866,28 +866,28 @@
   <button onclick="applyUpdate()">עדכן עכשיו</button>
 </div>
 
-<script>const _v = '1.21.47';</script>
-<script src="app.js?v=1.21.47"></script>
-<script src="core.js?v=1.21.47"></script>
-<script src="ui.js?v=1.21.47"></script>
-<script src="icons.js?v=1.21.47"></script>
-<script src="templates.js?v=1.21.47"></script>
-<script src="autocat.js?v=1.21.47"></script>
-<script src="detect.js?v=1.21.47"></script>
-<script src="budget.js?v=1.21.47"></script>
-<script src="budgetGen.js?v=1.21.47"></script>
-<script src="recurring.js?v=1.21.47"></script>
-<script src="dashboard.js?v=1.21.47"></script>
-<script src="transactions.js?v=1.21.47"></script>
-<script src="wizard.js?v=1.21.47"></script>
-<script src="import.js?v=1.21.47"></script>
-<script src="analysis.js?v=1.21.47"></script>
-<script src="settings.js?v=1.21.47"></script>
-<script src="drive.js?v=1.21.47"></script>
-<script src="property.js?v=1.21.47"></script>
-<script src="reports.js?v=1.21.47"></script>
-<script src="feedback.js?v=1.21.47"></script>
-<script src="scrollMirror.js?v=1.21.47"></script>
+<script>const _v = '1.21.48';</script>
+<script src="app.js?v=1.21.48"></script>
+<script src="core.js?v=1.21.48"></script>
+<script src="ui.js?v=1.21.48"></script>
+<script src="icons.js?v=1.21.48"></script>
+<script src="templates.js?v=1.21.48"></script>
+<script src="autocat.js?v=1.21.48"></script>
+<script src="detect.js?v=1.21.48"></script>
+<script src="budget.js?v=1.21.48"></script>
+<script src="budgetGen.js?v=1.21.48"></script>
+<script src="recurring.js?v=1.21.48"></script>
+<script src="dashboard.js?v=1.21.48"></script>
+<script src="transactions.js?v=1.21.48"></script>
+<script src="wizard.js?v=1.21.48"></script>
+<script src="import.js?v=1.21.48"></script>
+<script src="analysis.js?v=1.21.48"></script>
+<script src="settings.js?v=1.21.48"></script>
+<script src="drive.js?v=1.21.48"></script>
+<script src="property.js?v=1.21.48"></script>
+<script src="reports.js?v=1.21.48"></script>
+<script src="feedback.js?v=1.21.48"></script>
+<script src="scrollMirror.js?v=1.21.48"></script>
 
 <!-- SERVICE WORKER REGISTRATION & UPDATE LOGIC -->
 <script>
@@ -937,10 +937,12 @@
     setTimeout(() => window.location.reload(), 2500);
   }
 
-  // Nuclear option for stuck mobile installs: unregister every SW, drop every
-  // cache, then hard-reload. Wired to the "אפס מטמון" button in settings.
-  async function forceResetAppCache() {
-    if (!confirm('פעולה זו תנקה את כל המטמון של האפליקציה ותטען מחדש. אין השפעה על הנתונים השמורים. להמשיך?')) return
+  // Nuclear reload: unregister every SW, drop every cache, replace the URL
+  // with a cache-busting query so the browser HTTP cache can't return stale
+  // HTML either. Used both by the manual "🧹 אפס מטמון" button and by the
+  // post-confirm path in checkForUpdate (the SW skipWaiting+postMessage flow
+  // is too fragile on iOS to rely on for the user-initiated update).
+  async function _hardResetCachesAndReload() {
     try {
       if ('serviceWorker' in navigator) {
         const regs = await navigator.serviceWorker.getRegistrations()
@@ -950,10 +952,14 @@
         const keys = await caches.keys()
         await Promise.all(keys.map(k => caches.delete(k)))
       }
-    } catch (e) { console.error('forceResetAppCache failed:', e) }
-    // Cache-bust the reload URL so the browser HTTP cache can't hand back stale HTML.
+    } catch (e) { console.error('hard reset failed:', e) }
     const sep = location.href.includes('?') ? '&' : '?'
     location.replace(location.href.split('#')[0] + sep + '_reset=' + Date.now())
+  }
+
+  async function forceResetAppCache() {
+    if (!confirm('פעולה זו תנקה את כל המטמון של האפליקציה ותטען מחדש. אין השפעה על הנתונים השמורים. להמשיך?')) return
+    await _hardResetCachesAndReload()
   }
   function _watchWorker(worker) {
     if (!worker || _watchedWorkers.has(worker)) return;
@@ -1004,21 +1010,12 @@
       const remote = info.version;
       if (remote && remote !== APP_VERSION) {
         if (msgEl) { msgEl.textContent = `יש עדכון! גרסה ${remote} זמינה (מותקנת: ${APP_VERSION})`; msgEl.style.color = 'var(--expense)'; }
-        if (_swReg) await _swReg.update();
         if (confirm(`נמצאה גרסה חדשה (${remote}). לעדכן ולרענן כעת?`)) {
-          // wait briefly for worker to install, then apply
-          const waitForWaiting = (tries = 20) => new Promise(resolve => {
-            const tick = () => {
-              if (_swReg && _swReg.waiting) return resolve(true);
-              if (--tries <= 0) return resolve(false);
-              setTimeout(tick, 250);
-            };
-            tick();
-          });
-          await waitForWaiting();
-          applyUpdate();
-          // fallback if no waiting worker after grace period
-          setTimeout(() => window.location.reload(), 3000);
+          // Skip the soft SW skipWaiting/postMessage path entirely — iOS
+          // wedges on it. Drop every cache + unregister every SW + reload
+          // with a cache-busting query so the next fetch can't return stale
+          // bytes from anywhere (SW cache OR browser HTTP cache).
+          await _hardResetCachesAndReload();
         }
       } else {
         if (msgEl) { msgEl.textContent = `✅ האפליקציה מעודכנת (גרסה ${APP_VERSION})`; msgEl.style.color = 'var(--income)'; }
