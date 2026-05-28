@@ -13,9 +13,177 @@ function renderSettings() {
   renderTemplatesList()
   renderRulesList()
   renderAliasList()
+  renderReconcileAccountSelector()
+  renderReconcileTable()
   if (typeof loadGithubConfig === 'function') loadGithubConfig()
   if (typeof renderFeedbackList === 'function') renderFeedbackList()
   document.getElementById('appVersion').textContent = 'גרסה ' + APP_VERSION
+}
+
+// ===== BALANCE RECONCILIATION =====
+// Per-month "did we get the bank balance right" tool. The user types in the
+// end-of-month balance from each bank statement, we compute the same number
+// from getAccountBalance(uptoLastOfMonth) and flag the first month where the
+// two diverge — that's where the bookkeeping bug sits (duplicate row, wrong
+// sign, missed line, mis-typed transfer, etc).
+function getReconciliationData() { return DB.getObj('finReconciliation', {}) }
+function setReconciliationData(d) { DB.set('finReconciliation', d) }
+
+// Default to checking/cash accounts — savings/investment balances aren't
+// real-time accurate so reconciling them against a bank statement is noisy.
+function renderReconcileAccountSelector() {
+  const sel = document.getElementById('reconcileAccount')
+  if (!sel) return
+  const accs = getAccounts().filter(a => a.type === 'checking' || a.type === 'cash')
+  if (accs.length === 0) {
+    sel.innerHTML = '<option value="">אין חשבון עו"ש/מזומן</option>'
+    return
+  }
+  const prev = sel.value
+  sel.innerHTML = accs.map(a => `<option value="${a.id}">${a.name}${a.institution?' – '+a.institution:''}</option>`).join('')
+  if (prev && accs.some(a => a.id === prev)) sel.value = prev
+}
+
+function _lastDayOfMonth(ym) {
+  const [y, m] = ym.split('-').map(Number)
+  const d = new Date(y, m, 0)
+  return _iso(d)
+}
+
+// Earliest tx date that touches the account (either side of a mirror link).
+// Falls back to "current month" when the account has no tx yet.
+function _earliestTxDateForAccount(accountId) {
+  const dates = getTransactions()
+    .filter(t => t.accountId === accountId
+              || t.transferAccountId === accountId
+              || t.ccPaymentForAccountId === accountId)
+    .map(t => t.date)
+    .filter(Boolean)
+    .sort()
+  return dates[0] || _iso(new Date())
+}
+
+function _monthsInRange(startIso, endIso) {
+  if (!startIso) return []
+  const [sy, sm] = startIso.split('-').map(Number)
+  const [ey, em] = endIso.split('-').map(Number)
+  const months = []
+  let y = sy, mo = sm
+  while (y < ey || (y === ey && mo <= em)) {
+    months.push(`${y}-${String(mo).padStart(2,'0')}`)
+    mo++
+    if (mo > 12) { mo = 1; y++ }
+  }
+  return months
+}
+
+function renderReconcileTable() {
+  const sel = document.getElementById('reconcileAccount')
+  const wrap = document.getElementById('reconcileTable')
+  if (!sel || !wrap) return
+  const accountId = sel.value
+  if (!accountId) { wrap.innerHTML = ''; return }
+  const acc = getAccounts().find(a => a.id === accountId)
+  if (!acc) { wrap.innerHTML = ''; return }
+
+  const startIso = _earliestTxDateForAccount(accountId)
+  const endIso = _iso(new Date())
+  const months = _monthsInRange(startIso, endIso)
+  if (months.length === 0) {
+    wrap.innerHTML = '<p style="color:var(--text-muted);font-size:.9rem">אין עסקאות בחשבון.</p>'
+    return
+  }
+
+  const recAll = getReconciliationData()
+  const recForAcc = recAll[accountId] || {}
+
+  // Build rows in chronological order so the FIRST divergence stands out as
+  // the failure point — bugs cascade forward so anything after that month
+  // is downstream noise.
+  const rows = months.map(ym => {
+    const lastDay = _lastDayOfMonth(ym)
+    const computed = getAccountBalance(accountId, lastDay)
+    const bankRaw = recForAcc[ym]
+    const bank = (bankRaw === '' || bankRaw == null) ? null : Number(bankRaw)
+    const diff = (bank == null || !isFinite(bank)) ? null : bank - computed
+    return { ym, lastDay, computed, bank, diff }
+  })
+  // Identify first divergent month — both sides filled in and |diff| > 0.005.
+  let firstDivergent = -1
+  for (let i = 0; i < rows.length; i++) {
+    if (rows[i].diff != null && Math.abs(rows[i].diff) > 0.005) { firstDivergent = i; break }
+  }
+
+  const head = `<thead><tr>
+    <th>חודש</th>
+    <th>יתרה מחושבת (סוף חודש)</th>
+    <th>יתרה לפי הבנק</th>
+    <th>הפרש</th>
+    <th></th>
+  </tr></thead>`
+  const body = rows.map((r, i) => {
+    const ymDisp = r.ym.slice(5) + '/' + r.ym.slice(0,4)
+    const cls = (i === firstDivergent) ? 'rec-row-divergent'
+              : (r.diff != null && Math.abs(r.diff) <= 0.005) ? 'rec-row-match'
+              : ''
+    const diffCell = r.diff == null
+      ? '<span style="color:var(--text-muted);font-size:.8rem">—</span>'
+      : Math.abs(r.diff) <= 0.005
+        ? '<span style="color:var(--income);font-weight:600">✓ תואם</span>'
+        : `<span style="color:var(--expense);font-weight:600">${r.diff>0?'+':''}${formatCurrency(r.diff)}</span>`
+    const indicator = (i === firstDivergent)
+      ? '<span class="type-badge type-expense" title="כאן מתחיל הפער — בדוק את העסקאות בחודש הזה">🚨 כאן הפער מתחיל</span>'
+      : ''
+    const bankVal = (r.bank == null) ? '' : r.bank
+    return `<tr class="${cls}">
+      <td style="font-weight:600">${ymDisp}</td>
+      <td style="font-variant-numeric:tabular-nums">${formatCurrency(r.computed)}</td>
+      <td><input type="number" step="0.01" value="${bankVal}" placeholder="הזן..."
+            onchange="saveReconcileEntry('${accountId}','${r.ym}', this.value)"
+            style="max-width:140px;font-variant-numeric:tabular-nums"></td>
+      <td>${diffCell}</td>
+      <td>
+        <button class="btn-ghost" style="font-size:.78rem;padding:.3rem .6rem"
+          onclick="openMonthInTransactions('${accountId}','${r.ym}')" title="פתח את החודש במסך עסקאות">פתח חודש</button>
+        ${indicator}
+      </td>
+    </tr>`
+  }).join('')
+
+  wrap.innerHTML = `
+    <div style="overflow-x:auto">
+      <table class="data-table" style="min-width:560px">${head}<tbody>${body}</tbody></table>
+    </div>
+    <p style="font-size:.78rem;color:var(--text-muted);margin-top:.75rem">
+      רק עו"ש ומזומן ניתנים להתאמה — חיסכון/השקעות/CC לא מציגים יתרה בזמן אמת באפליקציה.
+      אחרי שהפער מתבטל בחודש הראשון הוא לרוב נסגר מעצמו לכל החודשים הבאים.
+    </p>`
+}
+
+function saveReconcileEntry(accountId, ym, value) {
+  const all = getReconciliationData()
+  if (!all[accountId]) all[accountId] = {}
+  const trimmed = String(value || '').trim()
+  if (trimmed === '') delete all[accountId][ym]
+  else all[accountId][ym] = Number(trimmed)
+  setReconciliationData(all)
+  renderReconcileTable()
+}
+
+// Opens the transactions screen with the period preset to the given month
+// and the account pre-filtered — the user can immediately scan that single
+// month's tx for the offending row.
+function openMonthInTransactions(accountId, ym) {
+  const lastDay = _lastDayOfMonth(ym)
+  const label = ym.slice(5) + '/' + ym.slice(0,4)
+  if (typeof setActivePeriod === 'function') {
+    setActivePeriod({ key: 'custom', label, start: ym + '-01', end: lastDay })
+  }
+  navigate('transactions')
+  setTimeout(() => {
+    const sel = document.getElementById('txAccountFilter')
+    if (sel) { sel.value = accountId; sel.dispatchEvent(new Event('change')) }
+  }, 30)
 }
 
 // ===== VENDOR ALIASES =====

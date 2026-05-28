@@ -463,6 +463,11 @@ select option { background-color: #141417; color: var(--text-primary); }
 .tab-btn:hover { color: var(--text-primary); }
 .tab-btn.active { color: var(--text-primary); font-weight: 600; border-bottom-color: var(--accent); }
 
+/* ===== BALANCE RECONCILIATION ===== */
+.rec-row-match    > td { background: rgba(34, 197, 94, 0.06); }
+.rec-row-divergent > td { background: rgba(239, 68, 68, 0.10); }
+.rec-row-divergent > td:first-child { border-inline-start: 3px solid var(--expense); }
+
 /* ===== ACCOUNT / CAT LIST ===== */
 .list-item { display: flex; align-items: center; justify-content: space-between; padding: .9rem 1.1rem; background: rgba(255,255,255,0.03); border: var(--glass-border); border-radius: var(--radius); margin-bottom: .5rem; box-shadow: inset 0 1px 0 rgba(255,255,255,0.04); }
 .list-item-name { font-weight: 600; }
