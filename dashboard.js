@@ -7,6 +7,25 @@ function renderDashboard() {
   document.getElementById('dashPeriodLabel').textContent = period.label || `${period.start} → ${period.end}`
 
   const all = getTransactions()
+  // Last-import indicator: max(importedAt) across all tx. Discreet subtitle
+  // line so the user can tell at a glance how stale the dashboard is without
+  // a dedicated card. Tooltip shows the source file when we have one.
+  ;(() => {
+    const el = document.getElementById('dashLastImport')
+    if (!el) return
+    let latest = 0, file = ''
+    for (const t of all) {
+      if (t.importedAt && t.importedAt > latest) { latest = t.importedAt; file = t.sourceFile || '' }
+    }
+    if (!latest) { el.textContent = ''; el.removeAttribute('title'); return }
+    const d = new Date(latest)
+    const dmy = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`
+    const diff = Date.now() - latest
+    const days = Math.floor(diff / 86400000)
+    const rel = days === 0 ? 'היום' : days === 1 ? 'אתמול' : `לפני ${days} ימים`
+    el.textContent = `📥 עדכון אחרון: ${dmy} (${rel})`
+    el.title = file ? `קובץ אחרון: ${file}` : ''
+  })()
   const periodTx = filterByEffectivePeriod(all, period)
 
   const income         = sumIncome(periodTx)
