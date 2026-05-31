@@ -135,6 +135,15 @@ function renderReconcileTable() {
       ? '<span class="type-badge type-expense" title="כאן מתחיל הפער — בדוק את העסקאות בחודש הזה">🚨 כאן הפער מתחיל</span>'
       : ''
     const bankVal = (r.bank == null) ? '' : r.bank
+    // Adjust button — only when there's a real divergence to close. It posts a
+    // single adjustment tx (income for positive diff, expense for negative)
+    // dated to the LAST day of the month so it lands inside this row's
+    // computed-balance window and bank == computed immediately afterwards.
+    const adjustBtn = (r.diff != null && Math.abs(r.diff) > 0.005)
+      ? `<button class="btn-primary" style="font-size:.78rem;padding:.3rem .6rem"
+            onclick="performBalanceAdjustment('${accountId}','${r.ym}', ${r.diff})"
+            title="צור עסקת התאמה בסכום ההפרש לסוף החודש">⚖️ התאם יתרה</button>`
+      : ''
     return `<tr class="${cls}">
       <td style="font-weight:600">${ymDisp}</td>
       <td style="font-variant-numeric:tabular-nums">${formatCurrency(r.computed)}</td>
@@ -142,7 +151,8 @@ function renderReconcileTable() {
             onchange="saveReconcileEntry('${accountId}','${r.ym}', this.value)"
             style="max-width:140px;font-variant-numeric:tabular-nums"></td>
       <td>${diffCell}</td>
-      <td>
+      <td style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap">
+        ${adjustBtn}
         <button class="btn-ghost" style="font-size:.78rem;padding:.3rem .6rem"
           onclick="openMonthInTransactions('${accountId}','${r.ym}')" title="פתח את החודש במסך עסקאות">פתח חודש</button>
         ${indicator}
@@ -167,6 +177,42 @@ function saveReconcileEntry(accountId, ym, value) {
   if (trimmed === '') delete all[accountId][ym]
   else all[accountId][ym] = Number(trimmed)
   setReconciliationData(all)
+  renderReconcileTable()
+}
+
+// One-click adjustment: posts a single income/expense tx (vendor "התאמת
+// יתרה") for the diff amount, dated to the last day of the given month so
+// the recomputed balance for that month equals the bank-reported balance
+// immediately. Asks for confirmation, refreshes the table, and surfaces a
+// toast. Doesn't touch other months — adjusting one month shifts every
+// subsequent computed balance by the same delta, which may close OR open
+// new gaps; the user keeps full control by re-entering bank values.
+function performBalanceAdjustment(accountId, ym, diff) {
+  const num = Number(diff)
+  if (!isFinite(num) || Math.abs(num) <= 0.005) return
+  const acc = getAccounts().find(a => a.id === accountId)
+  if (!acc) { alert('לא נמצא חשבון'); return }
+  const ymDisp = ym.slice(5) + '/' + ym.slice(0,4)
+  const direction = num > 0 ? 'הכנסה' : 'הוצאה'
+  const msg = `ליצור עסקת ${direction} של ${formatCurrency(Math.abs(num))} בסוף ${ymDisp} (חשבון: ${acc.name}) כדי להתאים את היתרה לבנק?`
+  if (!confirm(msg)) return
+  const lastDay = _lastDayOfMonth(ym)
+  const txs = getTransactions()
+  txs.push({
+    id: genId(),
+    accountId,
+    date: lastDay,
+    amount: num,                // positive = income, negative = expense
+    vendor: 'התאמת יתרה',
+    description: `התאמה אוטומטית של יתרת ${acc.name} עבור ${ymDisp}`,
+    type: num > 0 ? 'income' : 'expense',
+    categoryId: '',
+    notes: `התאמת יתרה אוטומטית · ${formatCurrency(num)} · ${ymDisp}`,
+    createdAt: Date.now(),
+    balanceAdjustment: true,     // tag for future filtering / hiding
+  })
+  DB.set('finTransactions', txs)
+  if (typeof toast === 'function') toast(`נוספה עסקת התאמה (${formatCurrency(num)}) ל-${ymDisp}`, { type: 'success' })
   renderReconcileTable()
 }
 

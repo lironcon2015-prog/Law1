@@ -1,4 +1,4 @@
-const APP_VERSION = '1.21.49'
+const APP_VERSION = '1.21.50'
 
 // ===== STORAGE =====
 const DB = {
@@ -316,20 +316,8 @@ function openEditModal(id) {
   _editIsNew = !tx
   if (!tx) {
     const accs = getAccounts()
-    // Default the new-tx date to today, UNLESS the active period doesn't
-    // include today — in that case use the period's end so the saved row
-    // shows up in the user's current view (typical when they came from the
-    // reconciliation tab's "פתח חודש" jump and want to add an adjustment
-    // INTO that month, not into the present month they can't see).
-    let defaultDate = new Date().toISOString().slice(0,10)
-    try {
-      const p = (typeof getActivePeriod === 'function') ? getActivePeriod() : null
-      if (p && p.start && p.end && (defaultDate < p.start || defaultDate > p.end)) {
-        defaultDate = p.end
-      }
-    } catch {}
     tx = {
-      id: genId(), accountId: accs[0]?.id || '', date: defaultDate,
+      id: genId(), accountId: accs[0]?.id || '', date: new Date().toISOString().slice(0,10),
       amount: 0, vendor: '', description: '', type: 'expense', categoryId: '', notes: '', createdAt: Date.now(),
     }
   }

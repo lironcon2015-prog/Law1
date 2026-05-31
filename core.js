@@ -293,14 +293,23 @@ function filterByPeriod(txs, p) {
 // Otherwise: credit_card accounts use day-vs-billingDay rollover; everything
 // else returns the calendar month of tx.date.
 function getTxEffectiveMonth(tx) {
+  if (!tx.date) return ''
+  const info = _getAccountInfo(tx.accountId)
+  const [y, m, d] = tx.date.split('-').map(Number)
+  if (!y || !m) return ''
+  // Non-CC accounts (checking / cash / savings / investment / unknown) are
+  // ALWAYS bucketed by the calendar month of `date`. We ignore any stray
+  // chargeDate / billingDay these accounts might carry — those fields are
+  // CC-only concepts, and a checking account that picked one up (legacy
+  // import, account-type change, manual edit) shouldn't have its tx pushed
+  // into a different month.
+  if (!info || info.type !== 'credit_card') return `${y}-${String(m).padStart(2,'0')}`
+  // CC: an explicit chargeDate from the issuer wins outright; otherwise
+  // billing-day rollover decides which bill cycle owns the purchase.
   if (tx.chargeDate) {
     const [cy, cm] = tx.chargeDate.split('-').map(Number)
     if (cy && cm) return `${cy}-${String(cm).padStart(2,'0')}`
   }
-  if (!tx.date) return ''
-  const info = _getAccountInfo(tx.accountId)
-  const [y, m, d] = tx.date.split('-').map(Number)
-  if (!info || info.type !== 'credit_card') return `${y}-${String(m).padStart(2,'0')}`
   const billingDay = info.billingDay || 10
   if (d < billingDay) return `${y}-${String(m).padStart(2,'0')}`
   const nm = m === 12 ? 1 : m + 1
